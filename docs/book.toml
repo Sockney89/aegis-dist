@@ -1,0 +1,14 @@
+# mdBook configuration for the Aegis human-readable language docs.
+#
+# Mirrored from the private project (docs/book.toml) by the release pipeline;
+# git-repository-url is repointed at this public repo during the mirror.
+
+[book]
+title = "Aegis Language"
+authors = ["Aegis contributors"]
+language = "en"
+description = "Aegis: a contract-aware, event-driven systems language with stack-by-default memory, a deliberately tiny grammar, and a compiler that treats AI as a first-class authoring mode."
+
+[output.html]
+default-theme = "ayu"
+git-repository-url = "https://github.com/Sockney89/aegis-dist"
