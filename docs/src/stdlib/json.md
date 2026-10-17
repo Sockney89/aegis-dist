@@ -19,8 +19,8 @@ enum Json {
 ```
 
 `Null`, `Bool`, `Num`, `Str` are scalars; `Arr`/`Obj` carry container payloads.
-Because L7b container slots may hold enum values (heap-boxed), a `List[Json]`
-or `Map[String, Json]` can store *any* JSON value, including nested arrays and
+Because a container can hold enum values, a `List[Json]` or
+`Map[String, Json]` can store *any* JSON value, including nested arrays and
 objects.
 
 ## Parsing

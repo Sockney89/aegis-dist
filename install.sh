@@ -84,7 +84,7 @@ BIN="$DIR/bin"
 
 LOCALBIN="$HOME/.local/bin"
 if [ -d "$LOCALBIN" ]; then
-  for b in compiler aegis-daemon aegis-ws aegis-mcp; do
+  for b in aegis compiler aegis-daemon aegis-ws aegis-mcp; do
     [ -e "$BIN/$b" ] && ln -sf "$BIN/$b" "$LOCALBIN/$b"
   done
   echo "linked binaries into $LOCALBIN"

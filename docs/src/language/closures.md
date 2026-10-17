@@ -9,8 +9,8 @@ let inc = |n: Int| n + 1          // Func(Int -> Int)
 ```
 
 Closures **capture by value** from the enclosing scope: scalars (`Int`, `Float`,
-`Bool`) and, since L8, containers — `List`, `Map`, `String`. One-pointer values
-capture like scalars too: an `I2` `Handle[T]`, or another closure value (`Func`),
+`Bool`) and containers — `List`, `Map`, `String`. One-pointer values
+capture like scalars too: a `Handle[T]`, or another closure value (`Func`),
 whose nested environment is retained by the capturing env and ARC-released when
 the closure is freed. A captured
 container is ARC-retained into the closure's environment block and released when
@@ -36,10 +36,10 @@ let ordered = names.sort(|x, y| rank.get_or(x, 0) - rank.get_or(y, 0))
 ```
 
 A sort comparator (or any `map`/`filter`/`fold` predicate) may read a captured
-map or list — the L8 gate pipeline is a filter -> map -> fold over a captured
-map with no index bookkeeping.
+map or list — the pipeline is a filter -> map -> fold over a captured map with
+no index bookkeeping.
 
-## Nested closures (L8d)
+## Nested closures
 
 A lambda may be defined inside another lambda's body. The inner closure reads
 the outer closure's params, locals, and captures out of the enclosing scope at

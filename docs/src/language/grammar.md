@@ -109,10 +109,8 @@ let str_box = Box[String] { value: "hello" }
 let pair = Pair[Int, String] { first: 1, second: "one" }
 ```
 
-The compiler monomorphizes generic structs: each instantiation creates a
-concrete struct with the type parameters substituted. For example, `Box[Int]`
-becomes a struct with `value: Int`, and `Box[String]` becomes a separate
-struct with `value: String`.
+Generics are instantiated per concrete type: `Box[Int]` is a struct with
+`value: Int`, and `Box[String]` is a separate struct with `value: String`.
 
 ## Generic methods
 
@@ -137,11 +135,10 @@ let head = u.first[String](["a", "b", "c"])
 let nested = u.identity[List[Int]](xs)
 ```
 
-The monomorphizer clones the generic definition into a concrete method per
-distinct call-site instantiation, substituting type parameters in the
-parameters, return type, and `let` annotations. Calling with the wrong number
-of type arguments (or none at all) errors with
-`no method '<name>' on type <Receiver>`.
+A generic method is instantiated per distinct call-site type instantiation,
+substituting the type parameters in the parameters, return type, and `let`
+annotations. Calling with the wrong number of type arguments (or none at all)
+errors with `no method '<name>' on type <Receiver>`.
 
 ## Multi-line literals
 
@@ -185,8 +182,7 @@ struct PrivateBox {
 ```
 
 Public items are accessible from other modules. Private items are only
-accessible within their own module. The compiler enforces visibility rules
-during semantic analysis:
+accessible within their own module. Visibility is enforced at compile time:
 
 - A struct is usable from another module only if declared `pub struct`. Private
   structs can be named, constructed (`Struct { ... }`), field-accessed and
@@ -203,8 +199,8 @@ dependency on a module that must exist somewhere in the compiled files.
 
 ## Multi-file compilation
 
-The compiler accepts multiple source files and combines them into a single
-program before semantic analysis:
+The compiler accepts multiple source files and builds a single program from
+them:
 
 ```bash
 aegis lib.aegis main.aegis --main Main::run --emit-exe main
@@ -215,22 +211,19 @@ building programs from multiple modules without explicit import statements.
 
 ## Archive linking
 
-A compiled program can be wrapped in a static archive and later linked into an
-executable, so builds can split into a library archive step and an app link
-step:
+A compiled program can be packaged into a library archive and later linked into
+an executable, so builds can split into a library step and an app link step:
 
 ```bash
 aegis lib.aegis app.aegis --main App::run --emit-archive app.a
 aegis app.a --emit-exe app
 ```
 
-`--emit-archive` wraps the emitted object with `llvm-ar rcs` (located via the
-`AEGIS_AR` env, else beside clang). Object and archive files (`*.o`, `*.obj`,
-`*.a`, `*.lib`) can be passed directly to `--emit-exe`: when every input is a
-compiled artifact the compiler skips parsing and links them with the runtime
-via clang/lld. Like `--emit-exe`, `--emit-archive` resolves the
-entry point from `--main` or the default `impl X { fn main(self) }` method, so
-an archive produced this way links into a running executable.
+Object and archive files (`*.o`, `*.obj`, `*.a`, `*.lib`) can be passed directly
+to `--emit-exe`: when every input is a compiled artifact the compiler links them
+with the runtime. Like `--emit-exe`, `--emit-archive` resolves the entry point
+from `--main` or the default `impl X { fn main(self) }` method, so an archive
+produced this way links into a running executable.
 
 ## Single-command FFI linking
 
@@ -243,15 +236,13 @@ aegis app.aegis helper.o libapp.a --emit-exe app
 ```
 
 The compiler parses the `.aegis` files and passes the object/archive/C inputs
-straight to the final clang/lld link, where a `.c` input is compiled at the link
-step. Mixing is only allowed with `--emit-exe`; compiling objects alone (or on
-their own with `--emit-obj`) is a usage error. `-l <name>`/`-l<name>` and
-`-L <dir>`/`-L<dir>` pass through to the link (as clang `-l`/`-L`), and any
-`AEGIS_LIBRARY_PATH` directories (PATH-style) are appended as `-L` search dirs:
+straight to the final link, where a `.c` input is compiled at the link step.
+Mixing is only allowed with `--emit-exe`; compiling objects alone (or on their
+own with `--emit-obj`) is a usage error. `-l <name>`/`-l<name>` and
+`-L <dir>`/`-L<dir>` pass through to the link (as clang `-l`/`-L`):
 
 ```bash
 aegis app.aegis --main App::run -L lib/generated -l helpers --emit-exe app
-AEGIS_LIBRARY_PATH=lib/generated aegis app.aegis -l helpers --emit-exe app
 ```
 
 Archives are found by name (`-l helpers` locates `helpers.lib` on COFF or
@@ -344,9 +335,9 @@ let rc = sqlite3_open(path, out db)   // db: Handle[Db], bound by this call
 
 The compiler allocates the slot, passes its address, and binds the callee's
 write as a fresh local for the following statements. Only scalar, `Str`, and
-`Handle[Tag]` out types are allowed, so the slot width is always known — plus,
-from the struct-ABI work, `out name: CStruct` for C-layout structs (the address
-of a fresh struct the callee fills in).
+`Handle[Tag]` out types are allowed, so the slot width is always known — plus
+`out name: CStruct` for C-layout structs (the address of a fresh struct the
+callee fills in).
 
 ## C-layout extern structs (`extern struct`)
 
@@ -365,8 +356,8 @@ Fields admit the C scalars (`Int`, `Float`, `Bool`, `i8..u64`, `f32`),
 extern structs; owned containers, non-extern structs, and `mut`/`pub` on fields
 are compile errors. An extern struct passes **by value** as a param, **by
 pointer** through `out name: T` (needed for the `struct stat*` shape), and may be
-returned **by value** (I9; a non-extern struct return is still rejected). See
-[types: C-layout extern structs](types.md#c-layout-extern-structs-i6i9).
+returned **by value** (a non-extern struct return is still rejected). See
+[types: C-layout extern structs](types.md#c-layout-extern-structs).
 
 An extern parameter typed `fn(A, B) -> R` is a C function pointer, and the
 argument must be a closure literal whose signature matches exactly:
@@ -382,10 +373,8 @@ let board = drive_board(8, 8, |x: Int, y: Int, s: Int| off + s, 3)  // captures 
 Callback payloads are limited to C scalars and `Str`, and `Empty` return maps
 to `void`; containers, `Handle[Tag]`, and structs in callback signatures are
 rejected (the sqlite row-callback shape `fn(Handle[Void], Int, Str, Str)` needs
-`Handle`/`char**` payloads, slated with the struct-ABI work). Each closure
-argument is compiled to a real C-ABI thunk with the declared signature; the
-compiler registers the closure's captured env against the thunk, so the C side
-can invoke it later and the captures stay live.
+`Handle`/`char**` payloads, which are not yet supported). A closure passed as a
+callback keeps its captures alive, so the C side can invoke it later.
 
 ## Calling Aegis from C (`export fn`)
 
@@ -407,9 +396,8 @@ export fn aegis_scale(x: Int) -> Int {
 Exports are restricted to C-marshalable scalars: `Int`, `Float`, `Bool`, the
 sized widths `i8`..`u64` and `f32`, and `void` (a body with no `-> T` arrow).
 A `String`, list, or struct parameter is a compile error — C-layout `extern
-struct`s cross the *extern* boundary by value/out-param (see the I6 struct-ABI
-section), but `export fn` signatures stay scalar-only in v1; a struct export is
-still open.
+struct`s cross the *extern* boundary by value/out-param, but `export fn`
+signatures stay scalar-only in v1; a struct export is still open.
 
 Export bodies are ordinary Aegis: they may call methods and `extern "C"`
 functions. Export functions are host-callable in v1, not Aegis-callable, so an
@@ -423,12 +411,7 @@ aegis exports.aegis --emit-dylib aegis.dll       # or libaegis.so on Linux
 ```
 
 `--emit-lib` writes the Aegis object alone, so the host supplies `main` and
-links the prebuilt runtime object shipped in `runtime/prebuilt/`:
-
-```
-clang -c host.c -o host.o
-clang host.o aegis.lib runtime/prebuilt/runtime-x86_64-pc-windows-msvc.obj -o app
-```
+must also link the Aegis runtime that ships with the toolchain.
 
 `--emit-dylib` links the runtime into the shared library itself and, on
 Windows, writes the matching import library next to it (`aegis.dll` →
@@ -536,8 +519,8 @@ The keyword set above is reserved: those names are always lexed as keywords and
 cannot be used as identifiers (struct names, field names, variable names). For
 example a field named `err` is a parse error —
 `expected field name, found reserved keyword 'err'` — so spell it `error`.
-(This is distinct from `state`/`transition`, which the parser recognizes
-contextually rather than the lexer, but prefer not to reuse them either.)
+(This is distinct from `state`/`transition`, which are recognized
+contextually, but prefer not to reuse them either.)
 
 ## Name resolution & diagnostics
 

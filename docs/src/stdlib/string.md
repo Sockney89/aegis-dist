@@ -21,11 +21,9 @@ Only str()-able scalar holes are allowed — `Int`, `Float`, `Bool`, and
 `String`. Containers are rejected with
 `interpolated values must be str()-able scalars or String, got List(Int)`.
 Literal braces are written `\{` and `\}` (an unescaped `{` always starts a
-hole). Interpolation is a first-class AST node (`Expr::Interp`), so it
-round-trips through the S3 wire schema (`--ast-json`) and the deterministic
-formatter (`--fmt`).
+hole). Interpolation is preserved by the formatter (`--fmt`).
 
-### Format specifiers (L6)
+### Format specifiers
 
 A hole may carry a format specifier after a `:`:
 
@@ -52,8 +50,8 @@ let i = 42
 ```
 
 The type must match the value: `"{i:.2f}"` on an `Int` is a semantic error
-(`format spec type 'f' requires a Float, got Int`). The spec is stored
-verbatim in the AST (`FormatSpec`), so it round-trips `--ast-json` and `--fmt`.
+(`format spec type 'f' requires a Float, got Int`). The spec is preserved by the
+formatter (`--fmt`).
 For fixed-decimal or padded output outside interpolation, `Float.format(digits)`
 and `Int.pad(width)` are compiler builtins:
 
@@ -97,7 +95,7 @@ elements; the separator must be a `String`.
 `ok(-17)`, and empty input or a non-digit character yields `err(...)`. This
 is the primitive for argv parsing with `argc()` / `arg(i)`.
 
-### Slicing, search and padding (M2)
+### Slicing, search and padding
 
 | Method | Returns | Notes |
 | --- | --- | --- |

@@ -2,7 +2,7 @@
 
 The Aegis standard library has two layers:
 
-1. **Compiler builtins** - methods the compiler lowers directly to LLVM. These are "sealed": you cannot
+1. **Compiler builtins** - methods the compiler provides directly. These are "sealed": you cannot
    redefine `String.length`, and the compiler type-checks their arguments.
 2. **Aegis seed modules** - ordinary `struct`/`impl` files under `stdlib/`
    that implement collections and numeric string helpers on top of builtins. Each

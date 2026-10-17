@@ -93,6 +93,7 @@ try {
     Write-Host ""
     Write-Host "Aegis installed to $Dir"
     Write-Host "  run:  $bin\compiler.exe --help"
+    Write-Host "  agent: $bin\aegis.exe init --tool opencode   # opencode/claude/cursor/vscode/windsurf/codex"
     if (-not $Cc) {
         Write-Host "  note: building an executable needs a clang-compatible C compiler;"
         Write-Host "        set it with:  [Environment]::SetEnvironmentVariable('AEGIS_CC','C:\LLVM\bin\clang.exe','User')"

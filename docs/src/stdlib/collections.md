@@ -2,9 +2,9 @@
 
 Beyond the builtin containers, the standard library ships seed collections
 written in Aegis itself under `stdlib/`. Each is generic: `Stack[T]`, `Set[T]`,
-`Queue[T]`, `Deque[T]` are monomorphized into one concrete struct per element
-type used (`Stack[Int]`, `Stack[String]`, ...) so a single stdlib definition
-serves every element type.
+`Queue[T]`, `Deque[T]` have one concrete implementation per element type
+(`Stack[Int]` and `Stack[String]` are separate); one generic source serves every
+element type.
 
 ## Stack (`stdlib/stack.aegis`)
 
@@ -131,7 +131,7 @@ d.pop_back()       // 2
 
 ## Map enumeration (`keys` / `values` / `get_or`)
 
-The native `Map[K, V]` gained (M5) a non-aborting lookup and entry
+The native `Map[K, V]` provides a non-aborting lookup and entry
 enumeration, so maps can be traversed without knowing the keys in advance:
 
 | Method | Returns | Notes |
@@ -167,8 +167,7 @@ An arity mismatch (`impl Stack[Int, String]`) is a compile error.
 
 ## Roadmap
 
-The M7 continuation still calls for JSON pretty-printing and a richer L6 string
-formatter. Struct-keyed maps are deliberately out of scope: structs are
-mutable, so a mutated key would invalidate its hash slot — encode composite
-keys as a `String` instead. See [Roadmap](../roadmap.md).
-in the repo root.
+JSON pretty-printing and a richer string formatter are still on the way.
+Struct-keyed maps are deliberately out of scope: structs are mutable, so a
+mutated key would invalidate its hash slot — encode composite keys as a
+`String` instead. See [Roadmap](../roadmap.md).

@@ -39,6 +39,7 @@ aegis://llms-full.txt.
 
 ## Using Aegis
 - [quickstart.md](quickstart.md): Install Aegis (Windows or Linux), hello world, building executables
+- [tooling.md](tooling.md): The aegis CLI: aegis init registers the MCP server with opencode/Claude/Cursor/VS Code/Windsurf/Codex
 - [examples.md](examples.md): Real projects: the wordfreq CLI and the dungeon-adventure flagship
 
 ## Plan

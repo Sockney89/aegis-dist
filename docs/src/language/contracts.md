@@ -1,9 +1,8 @@
 # Design by contract
 
 Contracts are first-class: every function may declare a precondition and a
-postcondition. The compiler carries them through codegen and the generated
-binary checks them at runtime. A violated contract aborts with a diagnostic
-such as:
+postcondition. The compiler carries them into the generated binary, which checks
+them at runtime. A violated contract aborts with a diagnostic such as:
 
 ```
 AEGIS ASSERT FAILED: BankAccount.deposit: requires failed

@@ -20,7 +20,7 @@ Primitives are single-slot machine values on the stack.
 `String` and `Str` name the same type; both spellings are accepted in type
 annotations (`List[Str]` and `List[String]` are identical).
 
-## Opaque handles (I2)
+## Opaque handles
 
 `Handle[Tag]` is a C pointer that Aegis can hold and pass but never look
 through. It is one pointer wide, like `Str`, and carries a phantom tag.
@@ -33,7 +33,7 @@ The tag exists for type safety only: `Handle[FILE]` and `Handle[sqlite3]` are
 different types, so the compiler rejects passing one where the other is
 expected, or comparing them with each other. It is not resolved, not declared,
 and carries no runtime cost - two handles with the same tag are the same type,
-and the tag is erased on the way to LLVM (both are `ptr`).
+and the tag disappears once the program is compiled.
 
 What a handle supports is deliberately tiny, because the C side owns the
 memory: pass it to an `extern "C"` call, return it, store it in a local or a
@@ -62,7 +62,7 @@ is expected, and it must be annotated to bind: `let h: Handle[Db] = null` is
 fine, `let h = null` is an error. That is what keeps an untyped null from
 being passed to a function expecting a different handle.
 
-## Out params (I3)
+## Out params
 
 An `extern "C"` parameter can be declared `out name: T`. It stands for `T*` on
 the C side — the C callee writes a result through it — so Aegis must pass an
@@ -85,10 +85,10 @@ callee, and after the call binds `db` as a fresh local whose value is whatever
 the callee wrote. `db` becomes visible to the statements *following* the call
 (statement-level binding — reading it in the same statement is rejected).
 
-Holds for any type whose slot has a known width at the I16-boundary: scalars
-(the I1 widths bind `uint32_t*` etc. exactly), `Str` (`char**` — a C
-fetch-last-error getter writes the message Aegis opens as `Str`), and
-`Handle[Tag]` (`sqlite3**`). `let seven: u32 = 7` is a valid annotated literal.
+Holds for scalars (the sized integer widths bind C integer pointers such as
+`uint32_t*` exactly), `Str` (`char**` — a C fetch-last-error getter writes the
+message Aegis opens as `Str`), and `Handle[Tag]` (`sqlite3**`).
+`let seven: u32 = 7` is a valid annotated literal.
 
 `out` is a context-sensitive marker, never a reserved word: `let mut out = ""`,
 `return out`, and a method param named `out` all still parse as identifiers.
@@ -97,7 +97,7 @@ is rejected on non-out params and on method/export-fn params, a stray `out x`
 outside an extern call is rejected, out params cannot be aggregates
 (`out xs: List[Int]`), and an out variable cannot be read before its call.
 
-## C-string marshaling (I4)
+## C-string marshaling
 
 A `-> Str` extern return is a C `char*` that is at best transient — valid only
 until the callee's *next* call (`sqlite3_column_text` is invalidated by the next
@@ -116,24 +116,14 @@ let err = sqlite3_errmsg(db)               // NULL from C reads back as ""
 A NULL C string reads back as the empty string, so a getter that returns NULL
 when there is nothing to say composes (`if err == "" { ... }`) instead of
 crashing the string machinery. On the way out nothing changes: `Str` params
-still cross zero-copy, because Aegis strings are already NUL-terminated heap
-buffers. When a callee may *retain* the pointer past the call or scribble on
-the buffer, hand it a copy with the declared intrinsic:
+still cross without a copy, because Aegis strings are already NUL-terminated
+buffers. When a callee may *retain* the pointer past the call or write into the
+buffer, make the C side an owned copy and keep that instead.
 
-```aegis
-extern "C" fn aegis_str_cstr(s: Str) -> Str   // owned NUL-terminated copy
-```
-
-The two intrinsics `aegis_str_cstr` / `aegis_str_from_cstr` are the marshaling
-primitives; their own returns are already owned, so they are exempt from the
-automatic copy. Strings are heap buffers never freed individually, so each
-marshaled snapshot is one leak per crossing — identical to every other runtime
-string, and the price of making C's transient buffers durable.
-
-## Function-pointer callbacks (I5)
+## Function-pointer callbacks
 
 An extern signature may declare a parameter of type `fn(...) -> R`, which is a
-C function pointer. Aegis closures marshal to a real `cdecl` thunk with the
+C function pointer. An Aegis closure marshals to a C function pointer with the
 declared signature, so callback-holding C APIs are reachable directly:
 
 ```aegis
@@ -143,9 +133,9 @@ extern "C" fn drive_board(
 ```
 
 Callback parameter and return types must be C-scalars (`Int`, `Float`, `Bool`,
-the I1 widths, `f32`; `Empty` return maps to `void`), or `Str`. `Str` callback
-params are C `char*` values the thunk snapshots into owned Aegis Strings
-(runtime `aegis_str_from_cstr`), so the closure sees a durable owned copy.
+the sized integer widths, `f32`; an `Empty` return maps to `void`), or `Str`.
+`Str` callback params are C `char*` values that are snapshotted into owned
+Aegis Strings, so the closure sees a durable owned copy.
 Containers and `Handle[Tag]` are not yet allowed as callback payloads.
 
 A callback argument must be a closure literal, and its signature must match the
@@ -161,30 +151,21 @@ let done = drive_board(8, 8, |x: Int, y: Int, state: Int| ticks + state, 3)
 
 (The motivating sqlite shape — `sqlite3_exec(db, sql, row_cb, arg, out err)`
 with `row_cb: fn(Handle[Void], Int, Str, Str) -> Int` — needs `Handle[` and
-`char**` callback payloads, which land with the struct-ABI work (I6); scalar
-and `Str` payloads already work.)
+`char**` callback payloads, which are not yet supported; scalar and `Str`
+payloads already work.)
 
-Each call site that passes a closure generates a pair of functions: the closure
-`aegis.lambda.N` (its env block, slot 0 = fn pointer) and the C-facing thunk
-`aegis.cb.N` with the exact declared C signature. Before the extern call the
-codegen stores the env block in the callback registry keyed by the thunk's own
-code address (`aegis_registry_set`); the thunk looks it up again on entry
-(`aegis_registry_get`), pulls the closure fn pointer from env slot 0, converts
-the C arguments into i64 slots, calls the closure through the slot ABI, and
-converts the slot result back (a `void` thunk returns nothing). A thunk whose
-env is never unregistered keeps the captures alive for the whole program, so a
-callback may fire *after* its calling statement returns — `sqlite3_exec` row
-callbacks and UDFs invoked later are safe.
+A closure passed as a callback keeps its captures alive for the rest of the
+program, so a callback may fire *after* its calling statement returns —
+`sqlite3_exec` row callbacks and UDFs invoked later are safe.
 
-At the callsite the compiled extern call passes the thunk's address where the
-signature declares the function pointer; the C side just sees a plain callback.
+At the callsite the declared parameter receives a plain C function pointer.
 Signatures are checked precisely — mismatches produce
 `callback param N of '...': closure signature ... does not match declared ...`,
 non-closure arguments are rejected (`needs a closure literal, got a value`),
 and non-scalar/Str callback signatures are rejected at the declaration
 (`C callback parameter types must be scalars ... or Str, got ...`).
 
-## C-layout extern structs (I6/I9)
+## C-layout extern structs
 
 `extern struct` declares a struct whose layout is dictated by C, not by Aegis —
 the shape from a C header (`struct stat`, win32 structs), usable directly across
@@ -203,9 +184,7 @@ memory is always writable). Layout follows the host C compiler's natural packing
 so the Aegis declaration and the C struct agree byte-for-byte; on Windows `long`
 is 32-bit, so host code should use `long long` for Aegis `Int` fields.
 
-An extern struct crosses the boundary **by value** as a parameter. Codegen picks
-the host ABI per target — on Windows x64 aggregates larger than 8 bytes pass by
-reference (`ptr`), on SysV up-to-16-byte aggregates pass by value — and
+An extern struct crosses the boundary **by value** as a parameter, or
 **by pointer** through an `out` slot, which is the `Point*`/`struct stat*` the C
 callee writes:
 
@@ -216,12 +195,9 @@ extern "C" fn pnt_mul(out p: Point, k: Int) -> Empty
 pnt_mul(out p, 10)
 ```
 
-An extern function may also **return** an extern struct by value (I9), which
-mirrors the param ABI: the aggregate returns in registers when it fits the
-target's rule (≤8 bytes on Windows x64, ≤16 on SysV) and otherwise through the
-C callee's hidden struct-return pointer, which codegen reproduces by passing a
-caller-allocated slot as the first argument. The result binds like any struct
-local:
+An extern function may also **return** an extern struct by value, using the
+same convention the platform uses for any C struct of that size. The result
+binds like any struct local:
 
 ```aegis
 extern "C" fn pnt_make(x: Int, y: Int) -> Point
@@ -234,21 +210,21 @@ diagnostic says which type and why. Pointer fields from real headers (e.g.
 `struct _Node* next`) are declared as `Handle[Tag]` fields, which ride raw in the
 struct and let `null` stand for C `NULL`.
 
-## Sized numeric widths (I1)
+## Sized numeric widths
 
 Beyond the i64 `Int` / f64 `Float` defaults, the compiler provides the sized
 widths used at FFI and systems boundaries:
 
-| Type | LLVM | Notes |
+| Type | C equivalent | Notes |
 | --- | --- | --- |
-| `i8` / `i16` / `i32` | i8 / i16 / i32 | signed, wraps on overflow |
-| `u8` / `u16` / `u32` / `u64` | i8 / i16 / i32 / i64 | unsigned; `<`/`<=`/`>`/`>=` and `/`/`%` use unsigned semantics |
-| `f32` | f32 | single-precision float |
+| `i8` / `i16` / `i32` | `int8_t` / `int16_t` / `int32_t` | signed, wraps on overflow |
+| `u8` / `u16` / `u32` / `u64` | `uint8_t` / `uint16_t` / `uint32_t` / `uint64_t` | unsigned; `<`/`<=`/`>`/`>=` and `/`/`%` use unsigned semantics |
+| `f32` | `float` | single-precision float |
 
 Sized values are native widths at struct fields, method parameters/returns, and
 `extern "C"` signatures — so a C function taking `uint32_t` binds exactly, with
-no widening shim. Inside containers (List/Map) and event payloads they ride the
-i64/f64 slot ABI, sign- or zero-extending on write and truncating on read.
+no widening shim. Inside containers (List/Map) and event payloads they are
+converted to and from the container element slot.
 
 Literals coerce ergonomically: `let x: u32 = 5` and `c + 1` (a bare integer
 literal adopts the other operand's width). Between sized types and the i64/f64
@@ -272,7 +248,7 @@ defaults; `to_i8()..to_u64()/to_f32()` convert to a sized width. Arithmetic
 between two different widths is an error unless one side is a bare literal —
 convert explicitly otherwise.
 
-## User sum types (enums, L7)
+## User sum types (enums)
 
 `enum` declares a first-class sum type with named variants; each variant may
 carry up to four payload fields (or none):
@@ -316,18 +292,15 @@ bind (`Kind::Pair(inner)`) binds the whole inner enum. Coverage extends one
 level: breaking a payload into nested variants requires covering all of them
 (see *Nested enum patterns* in the control-flow docs).
 
-## Container ABI
+## Containers
 
-A `List[T]` value is a two-field struct `{ i64 len, ptr handle }`; the handle
-points at a `runtime::aegis_list` (`len`, `cap`, `data`, `rc`). The compiler
-keeps the logical length mirrored in the value struct so reads do not need a
-runtime call; mutations resync it. Strings and maps use the same
-pointer-encoded scheme. All containers are reference counted; aliases are
-tracked by the compiler and copied where the semantics require it.
+`List`, `Map`, and `String` are reference counted. Copies share their storage
+until it is mutated, so passing or storing a container is cheap; the language
+level value semantics are preserved automatically.
 
 ## Memory & aliasing
 
-- Stack-by-default: locals are alloca'd in the frame.
+- Stack-by-default: locals live on the call stack.
 - Escape is inferred: values the compiler cannot keep on the stack become
   ARC pointers automatically. There is no `Box` or `Rc` spelling.
 - There are **no nulls**. Optionality is modeled with `Option[T]`; the

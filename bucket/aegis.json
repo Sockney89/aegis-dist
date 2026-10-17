@@ -9,10 +9,11 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/Sockney89/aegis-dist/releases/download/v0.1.0/aegis-x86_64-pc-windows-msvc.zip",
-            "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+            "hash": "a629564a42c01934addfbe308c84d11fd5bd574e4a669a000f1d0296cb420043"
         }
     },
     "bin": [
+        "bin/aegis.exe",
         "bin/compiler.exe",
         "bin/aegis-mcp.exe",
         "bin/aegis-daemon.exe",
@@ -24,7 +25,11 @@
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/Sockney89/aegis-dist/releases/download/v$version/aegis-x86_64-pc-windows-msvc.zip"
+                "url": "https://github.com/Sockney89/aegis-dist/releases/download/v$version/aegis-x86_64-pc-windows-msvc.zip",
+                "hash": {
+                    "url": "https://github.com/Sockney89/aegis-dist/releases/download/v$version/aegis-checksums.txt",
+                    "find": "([a-fA-F0-9]{64})\\s+\\*?aegis-x86_64-pc-windows-msvc\\.zip"
+                }
             }
         }
     }

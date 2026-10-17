@@ -80,7 +80,7 @@ Individual characters are also reachable with `s[i]`, which yields a
 single-character `Str`. The loop pairs naturally with `match` on the
 single-char binding (`"0" => ...`, `_ => ...`).
 
-### Map iteration (L8)
+### Map iteration
 
 `loop (k, v) in m` iterates a map's entries, binding the key to `k` and the
 value to `v` each iteration:
@@ -98,7 +98,7 @@ is not a `Map` is a type error (`loop (k, v) iterates a Map, got List(Int)`).
 Entries arrive in hash-bucket order, which is unspecified — check aggregate
 properties or key membership, not any particular sequence.
 
-### Pair views over lists (L8b)
+### Pair views over lists
 
 `loop (k, v) in xs.enumerate()` walks a list in order, binding `k` to the
 running index (`Int`) and `v` to each element:
@@ -126,7 +126,7 @@ unknown methods (`no method 'enumerate' on type List(Int)`). Using them over a
 non-list is a type error (`enumerate() requires a List`, `zip() requires two
 Lists`).
 
-### User iteration protocol (L8e)
+### User iteration protocol
 
 Any struct with a `next(mut self) -> Option[T]` method can be the iterable of
 `loop item in x`. The method shape is the protocol, whether `next` is declared
@@ -185,7 +185,7 @@ constructors: `ok(v)` / `err(e)` for `Result[T, E]` and `some(v)` / `none`
 for `Option[T]`. The compiler rejects unhandled `Result`/`Option`
 scrutinees; `?` propagates them.
 
-### Pattern depth (L7)
+### Pattern depth
 
 An arm may carry a **guard** — a Bool expression evaluated after the pattern
 matches, with the arm's bindings in scope; a failed guard falls through to the
@@ -220,7 +220,7 @@ match k {
 }
 ```
 
-### Nested enum patterns (L7)
+### Nested enum patterns
 
 A variant payload that is itself an enum can be matched directly — the inner
 payload binds through the two discriminants:

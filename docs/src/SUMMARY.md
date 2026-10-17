@@ -2,6 +2,7 @@
 
 [Introduction](introduction.md)
 [Quickstart](quickstart.md)
+[Tooling: the aegis CLI](tooling.md)
 [Real project: wordfreq CLI](examples.md)
 
 - [Language](language/index.md)

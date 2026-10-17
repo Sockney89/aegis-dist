@@ -1,8 +1,8 @@
 # Quickstart
 
-Aegis ships as a self-contained compiler toolchain. You install a prebuilt
-release, point it at a C compiler for the final link step, and compile `.aegis`
-programs to native executables.
+Aegis ships as a self-contained compiler toolchain. You install a release,
+point it at a C compiler for the final link step, and compile `.aegis` programs
+to native executables.
 
 ## Install
 
@@ -41,9 +41,8 @@ compiler at the final link to build the runtime. Point the compiler at it once:
 export AEGIS_CC=/usr/bin/clang
 ```
 
-Everything else — emitting objects, printing IR, formatting source — needs no C
-compiler. The Aegis runtime itself is precompiled per target and shipped in
-`runtime/prebuilt/`, so you never build it.
+Formatting and the other non-linking outputs need no C compiler. The Aegis
+runtime is bundled with the toolchain, so you never build it.
 
 ## Run your first program
 
@@ -65,8 +64,8 @@ compiler hello.aegis --main Greeter::greet --emit-exe hello
 `--emit-exe` produces a standalone executable (`.exe` suffix is appended on
 Windows). Without an explicit filename the executable is written next to the
 first input file under that file's basename; pass a path (`--emit-exe app.exe`)
-to control it. `--emit-obj` emits an object file, `--ir` prints the LLVM IR, and
-`--fmt` prints the canonical formatted source.
+to control it. `--emit-obj` emits an object file and `--fmt` prints the
+canonical formatted source.
 
 The entry point defaults to the method named `main` (an `impl X { fn main(self) }`)
 and can be overridden with `--main X::y`. `main` may return `Int` (the exit
@@ -82,15 +81,22 @@ program).
 
 `aegis-mcp` exposes the same streaming pipeline as MCP tools and resources, so
 an agent host (opencode and other MCP clients) can compile without a shell:
-open a session, stream the source item by item, then link and run. See
-[the MCP reference](stdlib/index.md) for the tool list and the
+open a session, stream the source item by item, then link and run. Register it
+with one command from your project root:
+
+```sh
+aegis init --tool opencode    # also: claude, cursor, vscode, windsurf, codex, all
+```
+
+Then restart the host. See [the `aegis` CLI](tooling.md) for the flags, the
+per-host config files, and the
 `create_session` → `stream_source` → `eos` → `link_object` → `run_object` loop.
 
 ## Standard library
 
 The "stdlib" has two layers:
 
-1. **Compiler builtins** - methods the compiler lowers directly to LLVM
+1. **Compiler builtins** - methods the compiler provides directly
    (`String.length`, `String.split/join/trim`, `String.to_upper/to_lower/
    repeat`, `List.map/filter/fold/sort/append/pop/length/contains/index_of/
    reverse`, `Map.length/contains/insert`,
