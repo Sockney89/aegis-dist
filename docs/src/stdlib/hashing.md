@@ -1,9 +1,8 @@
 # Hashing
 
-`hash(x)` is a value-level compiler builtin (like `now_ms` / `argc`) backed by
-`compiler/runtime/runtime.c`. It maps a scalar or string to a deterministic,
-non-negative `Int` using FNV-1a (64-bit) — the same family the `Map` uses for
-its string keys.
+`hash(x)` is a value-level compiler builtin (like `now_ms` / `argc`). It maps a
+scalar or string to a deterministic, non-negative `Int` using FNV-1a (64-bit) —
+the same family the `Map` uses for its string keys.
 
 | Function | Returns | Notes |
 | --- | --- | --- |
@@ -26,7 +25,4 @@ Properties:
 - **Not cryptographic.** This is a fast content hash for buckets, tables and
   fingerprints, not a password or integrity primitive.
 
-Argument types are checked: `hash([1, 2])` fails with
-`hash argument must be an Int, Bool, or String, got List(Int)`. Verified by the
-`hash` checks in `tests/e2e/builtin_suite.aegis` and the
-`hash_builtin_type_checks_and_rejects_bad_args` unit test.
+Verified by the `hash` checks in the builtin test suites.

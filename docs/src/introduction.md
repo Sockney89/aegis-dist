@@ -26,7 +26,6 @@ both humans and models can hold the entire language in one context window.
 ## Status
 
 Aegis is a working compiler today: you can write structs, contracts, state
-machines, event loops, closures, and higher-order list operations, run them
-locally on the LLVM code generator, and verify them with the self-checked
-suites under `tests/`. See [Quickstart](quickstart.md) to build and run it,
-and [Roadmap](roadmap.md) for where it is heading.
+machines, event loops, closures, and higher-order list operations, and compile
+them to native executables. See [Quickstart](quickstart.md) to install Aegis
+and run your first program, and [Roadmap](roadmap.md) for where it is heading.

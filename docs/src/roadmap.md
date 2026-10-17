@@ -1,8 +1,6 @@
 # Roadmap
 
-The authoritative plan lives in `LANG_ROADMAP.md` (language surface, the L/M tracks)
-and `ROADMAP.md` (project/toolchain, the S-track) at the repo root. This page
-summarizes the feature axis only.
+This page summarizes the language feature axis and current status.
 
 ## L1 - Observable programs (done)
 
@@ -100,7 +98,7 @@ sources with C/objects/archives.
   object/archive/C inputs and `-l`/`-L` (with `AEGIS_LIBRARY_PATH` as extra `-L`).
 - **I8** Aegis as a callable C library — done: `export fn` entry points over scalar
   params, `--emit-lib` (static `.lib`/`.a`) and `--emit-dylib` (`.dll` + import lib on
-  Windows, `.so` on Linux, with `runtime.c` linked in).
+  Windows, `.so` on Linux, with the runtime linked in).
 - **I9** C-struct returns by value — done: an `extern "C"` fn may return an `extern
   struct` (registers when it fits, else the hidden struct-return pointer), closing the
   I6 deferral; a non-extern Aegis struct return is still rejected.
@@ -124,12 +122,9 @@ done. **S9** (single-command FFI linking) shipped under the I-track as **I7**, a
 ## X-track - Cross compilation (done)
 
 Modeled on rustc: `--target <triple>` makes codegen emit target-specific objects
-(COFF/ELF per the effective target, CLI > `AEGIS_TARGET` > host), the C runtime
+(COFF/ELF per the effective target, CLI > `AEGIS_TARGET` > host), the runtime
 ships as **prebuilt per-target objects** so Aegis can be distributed without its
 source, and `--emit-exe` links through the host `clang` driver with
 `--target=` + `-fuse-ld=lld` so the target-appropriate linker is picked
 (`lld-link`/mingw/`ld.lld`; `AEGIS_CC` overrides). MCP sessions carry a target end
-to end. First pair: `x86_64-pc-windows-msvc` + `x86_64-unknown-linux-gnu`. Full
-milestones X1-X4 live in `ROADMAP.md`.
-
-See `LANG_ROADMAP.md` and `ROADMAP.md` for the full catalogues.
+to end. First pair: `x86_64-pc-windows-msvc` + `x86_64-unknown-linux-gnu`.

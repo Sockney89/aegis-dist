@@ -2,7 +2,7 @@
 
 `stdlib/csv.aegis` and `stdlib/table.aegis` are self-contained text-formatting
 modules written in Aegis on top of compiler builtins (no C). Both compile
-standalone and are spliced ahead of their self-test suites in the e2e gate.
+standalone and are covered by their self-test suites.
 
 ## CSV (`stdlib/csv.aegis`)
 
@@ -53,7 +53,5 @@ so the module stays standalone and does not depend on `stdlib/mathstr.aegis`.
 
 ## Round-trip
 
-The self-test suites (`tests/e2e/csv_suite.aegis`, `tests/e2e/table_suite.aegis`)
-print `csv stdlib suite OK` / `table stdlib suite OK` after splicing the matching
-module ahead of them; they cover quoted fields, CRLF and LF records, the
+The self-test suites exercise quoted fields, CRLF and LF records, the
 trailing-newline rule, blank input, encode round-trips, and table alignment.

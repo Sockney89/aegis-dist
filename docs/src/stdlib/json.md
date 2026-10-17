@@ -89,15 +89,12 @@ let s = jp.to_string(doc)     // "{\"y\":true,\"z\":null,\"s\":\"hi\n\"}"
 
 ## Round-trip
 
-The self-test suite (`tests/e2e/json_suite.aegis`) prints
-`json stdlib suite OK` after splicing `stdlib/json.aegis` ahead of it; it
-exercises parse/stringify round-trips, error paths, and container typed
-accessors. Because a `Map` iterates in hash order, only *same-key-set*
-round-trips are asserted to be deterministic.
+The self-test suite exercises parse/stringify round-trips, error paths, and
+container typed accessors. Because a `Map` iterates in hash order, only
+*same-key-set* round-trips are asserted to be deterministic.
 
 ## Roadmap
 
 The parser intentionally targets the RFC 8259 core. The roadmap calls for
 indentation control in `to_string`, full `\uXXXX` code point decoding, and a
-`parse_file` convenience over the IO stdlib. See
-[Roadmap](../roadmap.md) and `LANG_ROADMAP.md` in the repo root.
+`parse_file` convenience over the IO stdlib. See [Roadmap](../roadmap.md).

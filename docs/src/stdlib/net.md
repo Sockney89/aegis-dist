@@ -1,9 +1,9 @@
 # Net
 
-Minimal blocking TCP for backend servers, over the runtime's WinSock/POSIX helpers
-(`aegis_tcp_*` in `compiler/runtime/runtime.c`). Connections and listeners are
-opaque `Handle[T]` values created by externs; user code only ever passes them
-back to the `Net` methods.
+Minimal blocking TCP for backend servers, over the runtime's socket helpers
+(Windows Winsock / POSIX). Connections and listeners are
+opaque `Handle[T]` values; user code only ever passes them back to the `Net`
+methods.
 
 Aegis has no free functions, so TCP hangs off one instance:
 
@@ -49,5 +49,5 @@ dial.
 Everything is synchronous - one connection at a time, no threads. Handles are
 opaque: they must not be stored in containers crossing the FFI boundary, and are
 closed explicitly. `recv` returning `""` is the caller's stop signal (EOF and
-error share the channel). The externs are declared at the top of
-`stdlib/net.aegis`; the module compiles standalone with compiler builtins only.
+error share the channel). The externs are declared in `stdlib/net.aegis`; the module compiles standalone with
+compiler builtins only.

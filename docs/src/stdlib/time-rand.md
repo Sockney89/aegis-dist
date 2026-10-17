@@ -1,7 +1,6 @@
 # Time & randomness
 
-Value-level compiler builtins (like `print` / `argc`) backed by
-`compiler/runtime/runtime.c`.
+Value-level compiler builtins (like `print` / `argc`).
 
 | Function | Returns | Notes |
 | --- | --- | --- |
@@ -27,5 +26,5 @@ queue already uses, so it never jumps backwards on a clock adjustment.
 
 Argument types are checked: `rand_int("a", 3)` fails with
 `rand_int bounds must be Ints, got Str`. Verified by
-`tests/e2e/rand_suite.aegis` (reproducibility + range invariants + clock
-monotonicity) and the `randbad.aegis` negative.
+The test suite verifies reproducibility, range invariants, and clock
+monotonicity.

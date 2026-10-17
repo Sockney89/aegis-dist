@@ -18,7 +18,7 @@ let m = (-3.9).to_int()  // -3
 
 ## Compiler builtins
 
-These dispatch to `libm` wrappers in `compiler/runtime/runtime.c`, because the
+These dispatch to the runtime's math helpers (like `libm`), because the
 operation has no source-level expression:
 
 | Receiver | Method | Returns | Notes |

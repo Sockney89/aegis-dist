@@ -1,8 +1,8 @@
 name: docs
 
 # Builds the mdBook under docs/ and publishes it to GitHub Pages.
-# The docs/ tree is mirrored here from the private project's docs/src by the
-# private release pipeline; edits here are overwritten on the next mirror.
+# The docs/ tree is mirrored here from the private project's public-docs/src by
+# the private release pipeline; edits here are overwritten on the next mirror.
 #
 # NOTE(hardening): pin each action to a commit SHA before going public.
 

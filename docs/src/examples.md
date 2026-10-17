@@ -1,6 +1,6 @@
 # Real project: wordfreq CLI
 
-`examples/apps/wordfreq/` is a complete, two-module console application —
+The **wordfreq** project is a complete, two-module console application —
 the first "real project" built start-to-finish with the Aegis compiler. It
 exercises the same surface a normal CLI needs: cross-module visibility, a
 `Map[String, Int]` accumulator, `List` iteration, `argc()`/`arg(i)` argv
@@ -22,16 +22,14 @@ two real compiler bugs that are now fixed:
 |---------------------|-------------------------------------------------------------|
 | `lib.aegis`         | `@module wordfreq`; `pub struct Frequencies` + `add` + `order_by_count` |
 | `main.aegis`        | `@module wordfreq_main`; `import @wordfreq`; `App::main` entry (default) |
-| `wordfreq_ref.c`    | C reference with the same algorithm (hash map + selection sort + exact output) |
+| `wordfreq_ref.c`    | a C reference with the same algorithm, for size/speed comparison |
 
 ## Build
 
 One compiler command for the whole project, no hand-written C:
 
 ```text
-compiler examples/apps/wordfreq/main.aegis \
-         examples/apps/wordfreq/lib.aegis \
-         --emit-exe examples/apps/wordfreq/wordfreq.exe
+compiler main.aegis lib.aegis --emit-exe wordfreq.exe
 ```
 
 The entry point is `App::main`, found automatically as the default entry.
@@ -49,16 +47,16 @@ quick: 1
 tokens=8 unique=6
 ```
 
-## Measurements (Windows, x86_64-pc-windows-msvc, LLVM 22)
+## Measurements (Windows, x86_64-pc-windows-msvc)
 
-Debug-compiler build of the whole project (both files, codegen + clang link):
+A whole-project build (both files, codegen + link):
 
 ```text
 full project build (--emit-exe):   ~1.2 s
 aegis object file:                 3,564 B   (text 1,434 + data 143)
 ```
 
-Executable sizes (static CRT, whole `runtime.c` always linked):
+Executable sizes (static CRT, runtime always linked):
 
 ```text
 wordfreq.app (aegis)          172,544 B
@@ -71,8 +69,7 @@ program — hello/fizzbuzz/wordcount are all 171,008 B — from the statically
 linked CRT plus the full runtime compiled at `-O0` and linked without section
 GC. It is currently ~23 KB over the C reference and ~22 KB under the constant
 floor plus app code; closing the gap means opting the runtime compile and the
-object emit into real optimization (there is no LLVM pass pipeline yet — see
-the roadmap).
+object emit into real optimization (an ongoing area — see the roadmap).
 
 Runtime performance:
 
@@ -97,13 +94,14 @@ read the counts map, and index assignment targets are not yet supported, so
 
 # Flagship: the dungeon adventure
 
-`examples/dungeon.aegis` is the stress test for the standard library added in
-M1–M5: a deterministic, argv-driven text adventure. The e2e gate splices it
-after `stdlib/mathstr.aegis`, `stdlib/stack.aegis` and `stdlib/set.aegis`, then
+`examples/dungeon.aegis` is the flagship stress test for the standard library:
+a deterministic, argv-driven text adventure. Compiled alongside the seed
+modules (`stdlib/mathstr.aegis`, `stdlib/stack.aegis`, `stdlib/set.aegis`), it
 runs a fixed command script:
 
 ```text
-compiler <stdlib...> examples/dungeon.aegis --main Dungeon::run --emit-exe dungeon.exe
+compiler stdlib/mathstr.aegis stdlib/stack.aegis stdlib/set.aegis \
+         examples/dungeon.aegis --main Dungeon::run --emit-exe dungeon.exe
 dungeon.exe "go north" "go north" "take" "go south" "go east" "attack" "go north" "open" "look"
 ```
 

@@ -35,7 +35,7 @@ let rc = http.serve(8080, handler())
 
 `serve_on` splits out the bind so the caller can pick an ephemeral port, read it
 back with `net.port(l)`, and publish it before blocking in `accept` - the shape
-used by `tests/e2e/http_smoke.aegis` for deterministic tests.
+The router is exercised for deterministic behavior.
 
 ## Response headers
 

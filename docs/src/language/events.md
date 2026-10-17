@@ -15,8 +15,8 @@ on DomainEvent.Action(payload) {
 }
 ```
 
-The runtime event loop dispatches emitted events to `on` handlers. The e2e
-suites exercise emit/on round-trips (see `tests/e2e.eventloop*.aegis`).
+The runtime event loop dispatches emitted events to `on` handlers; emit/on
+round-trips are exercised by the test suite.
 
 ## Native state machines
 

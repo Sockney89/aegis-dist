@@ -170,5 +170,5 @@ An arity mismatch (`impl Stack[Int, String]`) is a compile error.
 The M7 continuation still calls for JSON pretty-printing and a richer L6 string
 formatter. Struct-keyed maps are deliberately out of scope: structs are
 mutable, so a mutated key would invalidate its hash slot — encode composite
-keys as a `String` instead. See [Roadmap](../roadmap.md) and `LANG_ROADMAP.md`
+keys as a `String` instead. See [Roadmap](../roadmap.md).
 in the repo root.

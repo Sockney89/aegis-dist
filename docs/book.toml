@@ -1,12 +1,17 @@
-# mdBook configuration for the Aegis human-readable language docs.
+# mdBook configuration for the public Aegis documentation.
 #
-# Mirrored from the private project (docs/book.toml) by the release pipeline;
-# git-repository-url is repointed at this public repo during the mirror.
+# Source of truth: public-docs/src/. The release pipeline mirrors this tree into
+# the public aegis-dist repository (docs/), where GitHub Pages builds it. The same
+# files feed the llms.txt / llms-full.txt corpora and the docs/ tree shipped in
+# each release archive.
+#
+# Build locally: download the mdBook binary (v0.4.x) and run `mdbook build public-docs`.
 
 [book]
 title = "Aegis Language"
 authors = ["Aegis contributors"]
 language = "en"
+src = "src"
 description = "Aegis: a contract-aware, event-driven systems language with stack-by-default memory, a deliberately tiny grammar, and a compiler that treats AI as a first-class authoring mode."
 
 [output.html]

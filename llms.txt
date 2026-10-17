@@ -1,0 +1,45 @@
+# Aegis
+
+> Aegis is a contract-aware, event-driven systems language: stack-by-default
+> memory with implicit ARC escape, errors as values, first-class design-by-
+> contract and state machines, actor-model events, and a deliberately tiny
+> grammar that fits comfortably in an LLM context window.
+
+The Markdown below is the public reference. It renders as the human-readable
+book and as the AI corpus you are reading.
+
+Served over MCP, each page is also a resource: aegis://docs/<path>, where <path>
+is the link target below (for example aegis://docs/language/types.md). Seed
+sources are aegis://stdlib/<path>. Also available: aegis://llms.txt and
+aegis://llms-full.txt.
+
+## Overview
+- [introduction.md](introduction.md): What Aegis is, its design principles, and current status
+
+## Language
+- [language/grammar.md](language/grammar.md): Keyword set, top-level items, generics, receivers, diagnostics
+- [language/types.md](language/types.md): Value types, the container ABI, memory and aliasing rules
+- [language/control-flow.md](language/control-flow.md): if/else if, the single loop, match, errors-as-values
+- [language/contracts.md](language/contracts.md): requires/ensures/old and runtime contract checking
+- [language/events.md](language/events.md): Actor-model emit/on and native state machines
+- [language/closures.md](language/closures.md): Lambda syntax, capture rules, higher-order list methods
+
+## Standard library
+- [stdlib/math.md](stdlib/math.md): Int/Float math builtins and the mathstr.aegis seed
+- [stdlib/string.md](stdlib/string.md): String builtins: length, trim, split, join, case/repeat, interpolation
+- [stdlib/list.md](stdlib/list.md): List operations: append/pop/contains/index_of/reverse/dedupe/slice/map/filter/fold/sort/join
+- [stdlib/collections.md](stdlib/collections.md): In-Aegis collections (Stack, Set, Queue, Deque) and Map enumeration
+- [stdlib/json.md](stdlib/json.md): JSON (RFC 8259): typed parse + serialize over the Json enum stdlib
+- [stdlib/csv-table.md](stdlib/csv-table.md): CSV encode/decode (RFC 4180 subset) and fixed-width table rendering
+- [stdlib/io.md](stdlib/io.md): File IO & stdin builtins: read_file/write_file/file_exists/read_line/list_dir
+- [stdlib/time-rand.md](stdlib/time-rand.md): Time & randomness builtins: now_ms and a seeded PRNG
+- [stdlib/hashing.md](stdlib/hashing.md): Hashing builtin: hash(x) FNV-1a over Int/Bool/String
+- [stdlib/net.md](stdlib/net.md): Blocking TCP: init/listen/accept/connect/recv/send, hostname DNS resolution
+- [stdlib/http.md](stdlib/http.md): Minimal HTTP/1.1 server: Request/Response, serve_on + serve accept loop, plain-code routing
+
+## Using Aegis
+- [quickstart.md](quickstart.md): Install Aegis (Windows or Linux), hello world, building executables
+- [examples.md](examples.md): Real projects: the wordfreq CLI and the dungeon-adventure flagship
+
+## Plan
+- [roadmap.md](roadmap.md): Language feature plan and status

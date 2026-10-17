@@ -227,8 +227,8 @@ aegis app.a --emit-exe app
 `--emit-archive` wraps the emitted object with `llvm-ar rcs` (located via the
 `AEGIS_AR` env, else beside clang). Object and archive files (`*.o`, `*.obj`,
 `*.a`, `*.lib`) can be passed directly to `--emit-exe`: when every input is a
-compiled artifact the compiler skips parsing and links them with the shim and
-`runtime.c` via clang/lld. Like `--emit-exe`, `--emit-archive` resolves the
+compiled artifact the compiler skips parsing and links them with the runtime
+via clang/lld. Like `--emit-exe`, `--emit-archive` resolves the
 entry point from `--main` or the default `impl X { fn main(self) }` method, so
 an archive produced this way links into a running executable.
 
@@ -366,8 +366,7 @@ extern structs; owned containers, non-extern structs, and `mut`/`pub` on fields
 are compile errors. An extern struct passes **by value** as a param, **by
 pointer** through `out name: T` (needed for the `struct stat*` shape), and may be
 returned **by value** (I9; a non-extern struct return is still rejected). See
-[types: C-layout extern structs](../language/types.md#c-layout-extern-structs-i6i9)
-and [abi: C-layout extern structs](../internals/abi.md#c-layout-extern-structs-i6i9).
+[types: C-layout extern structs](types.md#c-layout-extern-structs-i6i9).
 
 An extern parameter typed `fn(A, B) -> R` is a C function pointer, and the
 argument must be a closure literal whose signature matches exactly:
@@ -386,8 +385,7 @@ rejected (the sqlite row-callback shape `fn(Handle[Void], Int, Str, Str)` needs
 `Handle`/`char**` payloads, slated with the struct-ABI work). Each closure
 argument is compiled to a real C-ABI thunk with the declared signature; the
 compiler registers the closure's captured env against the thunk, so the C side
-can invoke it later and the captures stay live (see
-[Callbacks](../internals/abi.md#callbacks-i5)).
+can invoke it later and the captures stay live.
 
 ## Calling Aegis from C (`export fn`)
 
@@ -425,15 +423,14 @@ aegis exports.aegis --emit-dylib aegis.dll       # or libaegis.so on Linux
 ```
 
 `--emit-lib` writes the Aegis object alone, so the host supplies `main` and
-links `runtime.c`:
+links the prebuilt runtime object shipped in `runtime/prebuilt/`:
 
 ```
 clang -c host.c -o host.o
-clang -c runtime.c -o runtime.o
-clang host.o aegis.lib runtime.o -o app
+clang host.o aegis.lib runtime/prebuilt/runtime-x86_64-pc-windows-msvc.obj -o app
 ```
 
-`--emit-dylib` links `runtime.c` into the shared library itself and, on
+`--emit-dylib` links the runtime into the shared library itself and, on
 Windows, writes the matching import library next to it (`aegis.dll` →
 `aegis.lib`), so a host links against the `.lib` and loads the DLL. Neither
 mode invents a default `aegis_main`; pass `--main App::run` explicitly if the

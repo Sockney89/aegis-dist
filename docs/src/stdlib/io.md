@@ -1,7 +1,6 @@
 # File IO & stdin
 
-These are value-level compiler builtins (like `print` / `argc`), implemented in
-`compiler/runtime/runtime.c`. Failures are values: `read_file`, `read_line`, and
+These are value-level compiler builtins (like `print` / `argc`). Failures are values: `read_file`, `read_line`, and
 `list_dir` return `Result[String, String]` / `Result[List[String], String]`, and
 `write_file` returns `Result[Int, String]` (bytes written). Files are
 read/written as raw bytes; `read_line` is the only operation that strips a
@@ -49,9 +48,8 @@ runtime (`FindFirstFileA` on Windows, `readdir` elsewhere).
 A `match` on a `Result` binds its payload by reference, so a bound `String`
 supports the full string surface. This needed a codegen fix (a match-bound
 payload was treated as an lvalue slot); it is exercised by
-`tests/e2e/io_suite.aegis`, which round-trips a scratch file passed as
-`arg(1)` and checks the `err` path on a missing file. `tests/e2e/listdir_suite.aegis`
-does the same for a scratch directory (`arg(1)`) and a missing path (`arg(2)`).
+The test suite verifies these behaviors against scratch files and directories,
+including the `err` path on a missing file.
 
 The stdlib is not auto-loaded: these IO builtins need no `import`, but
 seed-module methods (for example `String.replace`) require

@@ -1,0 +1,2602 @@
+
+# introduction
+
+# Introduction
+
+Aegis is a systems-oriented programming language under active development. It
+targets a specific contradiction in modern tooling: LLM-assisted programming
+benefits from fluent, invisible abstractions, while systems programming demands
+explicit control. Aegis responds with a **deliberately tiny grammar** so that
+both humans and models can hold the entire language in one context window.
+
+## Principles
+
+- **Stack-by-default memory.** The compiler allocates on the stack and only
+  introduces automatic reference counting (ARC) where data provably escapes
+  the current frame. No `Box`/`Rc` spellings: escape is inferred.
+- **Errors are values.** There is no `try`/`catch`/`throw`. Functions return
+  `Result[T, E]`; the compiler rejects code that ignores an unhandled
+  `Result` or `Option`.
+- **Design by contract.** `requires` / `ensures` / `old(...)` annotate the
+  edges of every function and check them at runtime; the state machine support
+  turns "which state is this domain object in" into a compile-checked fact.
+- **Concurrency as actors.** No mutexes. Structs communicate via `emit` events
+  and `on` handlers. Values are never silently shared between execution
+  contexts.
+- **Composition, not inheritance.** Data lives in `struct`, behavior in
+  `impl`. No `class`, no `extends`.
+
+## Status
+
+Aegis is a working compiler today: you can write structs, contracts, state
+machines, event loops, closures, and higher-order list operations, and compile
+them to native executables. See [Quickstart](quickstart.md) to install Aegis
+and run your first program, and [Roadmap](roadmap.md) for where it is heading.
+
+# language/grammar
+
+# Grammar & keywords
+
+## Keywords
+
+Aegis keeps its keyword list small on purpose (context efficiency). The full
+set is:
+
+```
+struct  impl  fn  loop  while  break  continue
+if  else  match  in  state
+trait  for  pub  extern  after
+let  mut  const  import
+requires  ensures  old
+emit  on  transition
+return  ok  err  some  none
+enum
+true  false
+```
+
+`@module` tags attach a domain namespace to a file (used by the cross-file
+`import` path of the spec). Programs without module tags are simple: parse a
+file, validate it, emit it.
+
+## Identifiers
+
+An identifier is a letter or `_`, followed by letters, digits, or `_`
+(`[A-Za-z_][A-Za-z0-9_]*`). `state` and `transition` are recognized
+contextually rather than lexed as keywords, but avoid reusing them as names.
+
+## Operators
+
+Highest precedence to lowest:
+
+| Level | Operators |
+| --- | --- |
+| unary | `-` (numeric negate), `!` (Bool not), `~` (bitwise not) |
+| power | `**` (right-associative) |
+| multiplicative | `*` `/` `%` |
+| additive | `+` `-` |
+| shift | `<<` `>>` |
+| comparison | `<` `<=` `>` `>=` |
+| equality | `==` `!=` |
+| bitwise and | `&` |
+| bitwise xor | `^` |
+| bitwise or | `\|` |
+| logical and (short-circuit) | `&&` |
+| logical or (short-circuit) | `\|\|` |
+
+The `&` `|` `^` `~` `<<` `>>` operators are integer-only (natively sized
+`i8..u64` or `Int`) and width-exact: bare literals adopt the other operand's
+width (same rule as arithmetic), and mixed widths without an explicit
+conversion are rejected. Precedence follows C/Rust, so equality binds looser
+than `&` — a mask comparison needs parentheses, as in C: `(attrs & 3) == 1`.
+A prefix `|` in expression position opens a lambda head (`|x: Int| x * 2`),
+never bitwise-or; a match-arm `|` still forms alternatives
+(`Kind::Int(n) | Kind::Str(s) => ...`).
+
+`+` also concatenates `Str`, and `==`/`!=` compare strings by content. `**`
+is the power operator (`a ** b` desugars to `a.pow(b)`; right-associative,
+so `2 ** 3 ** 2` is `2 ** (3 ** 2)`, and `-2 ** 2` is `-(2 ** 2)`). There is
+no `++`/`--` (use `+= 1`). Compound assignment `+= -= *= /= %= <<= >>= &= ^=
+|=` is supported, each desugaring to a read-modify-write of the same target.
+
+## Top-level items
+
+A source file is a sequence of top-level items:
+
+```
+state OrderState { Pending, Paid, Shipped }   // state machine
+struct BankAccount { owner: String, mut balance: Int }
+struct Box[T] { mut value: T }                // generic struct with type parameter
+trait Greeter {                                // method set + contract spec
+    requires self.energy > 0
+    fn greet(self, name: String) -> String     // declaration, no body
+}
+impl Greeter for Loud {                        // trait impl
+    requires self.energy > 0
+    fn greet(self, name: String) -> String { ... }
+}
+impl BankAccount {
+    fn deposit(mut self, amount: Int) -> Empty { ... }
+}
+struct Order { }
+impl Order @ OrderState::Pending {             // state-guarded impl
+    fn process_payment(mut self) { ... }
+}
+```
+
+## Generic structs
+
+Structs can have type parameters, enabling reusable data structures:
+
+```
+struct Box[T] {
+    mut value: T
+}
+
+struct Pair[A, B] {
+    first: A,
+    second: B
+}
+```
+
+Instantiate generic structs with concrete type arguments:
+
+```
+let int_box = Box[Int] { value: 42 }
+let str_box = Box[String] { value: "hello" }
+let pair = Pair[Int, String] { first: 1, second: "one" }
+```
+
+The compiler monomorphizes generic structs: each instantiation creates a
+concrete struct with the type parameters substituted. For example, `Box[Int]`
+becomes a struct with `value: Int`, and `Box[String]` becomes a separate
+struct with `value: String`.
+
+## Generic methods
+
+Methods can declare their own type parameters, independent of the receiver:
+
+```
+impl Util {
+    fn identity[T](self, x: T) -> T {
+        return x
+    }
+    fn first[T](self, xs: List[T]) -> T {
+        return xs[0]
+    }
+}
+```
+
+Call them with explicit type arguments that ride inside the method name:
+
+```
+let v = u.identity[Int](42)
+let head = u.first[String](["a", "b", "c"])
+let nested = u.identity[List[Int]](xs)
+```
+
+The monomorphizer clones the generic definition into a concrete method per
+distinct call-site instantiation, substituting type parameters in the
+parameters, return type, and `let` annotations. Calling with the wrong number
+of type arguments (or none at all) errors with
+`no method '<name>' on type <Receiver>`.
+
+## Multi-line literals
+
+Struct, list and map literals may span lines. Newlines are allowed between
+elements, after commas (a trailing comma before the closing delimiter is fine),
+and right after the opening delimiter:
+
+```
+let p = Point {
+    x: 3,
+    y: 4,
+}
+let xs = [
+    1,
+    2,
+    3,
+]
+let m = {
+    "a": 1,
+    "b": 2,
+}
+```
+
+The block-vs-literal disambiguation is unaffected: `if flag { ... }` still opens
+a block (never a struct initializer), because control-flow heads are parsed with
+struct-init suppressed. The canonical formatter still prints literals on a
+single line.
+
+## Visibility
+
+Structs and fields can be marked as `pub` (public) or left private (default):
+
+```
+pub struct PublicBox {
+    pub mut value: Int
+}
+
+struct PrivateBox {
+    mut value: Int
+}
+```
+
+Public items are accessible from other modules. Private items are only
+accessible within their own module. The compiler enforces visibility rules
+during semantic analysis:
+
+- A struct is usable from another module only if declared `pub struct`. Private
+  structs can be named, constructed (`Struct { ... }`), field-accessed and
+  method-called only inside their own module.
+- Inside a `pub` struct, a field is readable/writable from another module only
+  if declared `pub` (or `pub mut`). Private fields stay within their module.
+- Methods inherit the receiver struct's visibility: a `pub` struct's methods
+  are callable cross-module; a private struct's methods are not.
+- Same-module access never requires `pub`.
+
+A module is the namespace introduced by the nearest preceding `@module <name>`
+tag; items before any tag belong to the root module. `import @<name>` records a
+dependency on a module that must exist somewhere in the compiled files.
+
+## Multi-file compilation
+
+The compiler accepts multiple source files and combines them into a single
+program before semantic analysis:
+
+```bash
+aegis lib.aegis main.aegis --main Main::run --emit-exe main
+```
+
+All items from all input files are available to each other. This enables
+building programs from multiple modules without explicit import statements.
+
+## Archive linking
+
+A compiled program can be wrapped in a static archive and later linked into an
+executable, so builds can split into a library archive step and an app link
+step:
+
+```bash
+aegis lib.aegis app.aegis --main App::run --emit-archive app.a
+aegis app.a --emit-exe app
+```
+
+`--emit-archive` wraps the emitted object with `llvm-ar rcs` (located via the
+`AEGIS_AR` env, else beside clang). Object and archive files (`*.o`, `*.obj`,
+`*.a`, `*.lib`) can be passed directly to `--emit-exe`: when every input is a
+compiled artifact the compiler skips parsing and links them with the runtime
+via clang/lld. Like `--emit-exe`, `--emit-archive` resolves the
+entry point from `--main` or the default `impl X { fn main(self) }` method, so
+an archive produced this way links into a running executable.
+
+## Single-command FFI linking
+
+Sources and compiled artifacts can be mixed in one invocation, so FFI builds
+never need a manual clang step:
+
+```bash
+aegis app.aegis helper.c --main App::run --emit-exe app
+aegis app.aegis helper.o libapp.a --emit-exe app
+```
+
+The compiler parses the `.aegis` files and passes the object/archive/C inputs
+straight to the final clang/lld link, where a `.c` input is compiled at the link
+step. Mixing is only allowed with `--emit-exe`; compiling objects alone (or on
+their own with `--emit-obj`) is a usage error. `-l <name>`/`-l<name>` and
+`-L <dir>`/`-L<dir>` pass through to the link (as clang `-l`/`-L`), and any
+`AEGIS_LIBRARY_PATH` directories (PATH-style) are appended as `-L` search dirs:
+
+```bash
+aegis app.aegis --main App::run -L lib/generated -l helpers --emit-exe app
+AEGIS_LIBRARY_PATH=lib/generated aegis app.aegis -l helpers --emit-exe app
+```
+
+Archives are found by name (`-l helpers` locates `helpers.lib` on COFF or
+`libhelpers.a` on ELF). A search dir alone does not link anything — archives
+are only pulled in when named by a `-l`, exactly like gcc/clang.
+
+## Foreign Function Interface (FFI)
+
+Aegis can call C functions using `extern "C"` declarations:
+
+```
+extern "C" fn add_numbers(a: Int, b: Int) -> Int
+extern "C" fn multiply(a: Int, b: Int) -> Int
+
+struct Suite { }
+
+impl Suite {
+    fn run(self) -> Int {
+        let sum = add_numbers(10, 20)
+        let product = multiply(5, 7)
+        return 0
+    }
+}
+```
+
+The extern function must be implemented in C and linked at compile time.
+Parameters and return types must be primitive types (Int, Float, Bool, String)
+or sized widths or [opaque handles](#opaque-handles). A parameter may instead be
+declared `out name: T` — `T*` on the C side: the callee writes a result into a
+slot Aegis allocates, and a call passes `out name` to claim it (see
+[Out params](../language/types.md#out-params-i3)).
+
+A `-> Str` return is a C `char*` that is at best transient - valid only until
+the callee's next call. Aegis copies it into an owned String the moment the
+call returns, and a NULL C string reads back as `""`; an `out msg: Str`
+readback is copied the same way (see [C-string marshaling](../language/types.md#c-string-marshaling-i4)).
+
+### Opaque handles
+
+A C library that hands back a pointer it owns - a `FILE*`, a `sqlite3*`, a
+`HWND` - is declared with `Handle[Tag]`. The tag is a phantom name: nothing
+declares it, and it exists only so two handle types cannot be mixed up.
+
+```
+extern "C" fn fopen(path: Handle[CStr], mode: Handle[CStr]) -> Handle[FILE]
+extern "C" fn fgetc(f: Handle[FILE]) -> Int
+extern "C" fn fclose(f: Handle[FILE]) -> Empty
+
+struct Suite { }
+
+impl Suite {
+    fn run(self, f: Handle[FILE]) -> Int {
+        if f == null {
+            return 1
+        }
+        let c = fgetc(f)
+        fclose(f)
+        return c
+    }
+}
+```
+
+A handle is exactly one pointer wide and is never dereferenced from Aegis:
+`f.value` is rejected with an `opaque` diagnostic, because the C side owns both
+the memory and the layout. The only things you can do with one are hand it back
+to an extern function, store it, test it against `null`, and compare it for
+identity with `==` / `!=`. Ordering (`<`) is rejected - pointers have no order.
+
+`null` is the null pointer. It is only meaningful where a handle is expected, so
+it needs an annotation to bind:
+
+```
+let f: Handle[FILE] = null     // fine - the tag is known
+let f = null                   // rejected: null needs a handle annotation
+if f == null { ... }           // fine
+```
+
+Because the tag on a bare `null` is unknown, mixing is checked everywhere a
+handle travels: passing a `Handle[Db]` where a `Handle[File]` is expected is a
+type error, and so is `db == file`.
+
+An extern parameter declared `out name: T` is `T*` and is filled with an
+`out name` argument:
+
+```
+extern "C" fn sqlite3_open(path: Handle[CStr], out db: Handle[Db]) -> Int
+
+let rc = sqlite3_open(path, out db)   // db: Handle[Db], bound by this call
+```
+
+The compiler allocates the slot, passes its address, and binds the callee's
+write as a fresh local for the following statements. Only scalar, `Str`, and
+`Handle[Tag]` out types are allowed, so the slot width is always known — plus,
+from the struct-ABI work, `out name: CStruct` for C-layout structs (the address
+of a fresh struct the callee fills in).
+
+## C-layout extern structs (`extern struct`)
+
+`extern struct Name { f: T, ... }` declares a struct whose layout is owned by
+the host C compiler — the shape from a header, not an Aegis-conceived layout:
+
+```
+extern struct Point { x: Int, y: Int }
+extern struct Box { origin: Point, w: Int, h: Int }
+extern struct Node { data: Int, next: Handle[Node] }
+extern struct Stats { size: Int, mode: u32, mtime: Int }
+```
+
+Fields admit the C scalars (`Int`, `Float`, `Bool`, `i8..u64`, `f32`),
+`Handle[T]` (raw pointers from the header, `null` for C `NULL`), and nested
+extern structs; owned containers, non-extern structs, and `mut`/`pub` on fields
+are compile errors. An extern struct passes **by value** as a param, **by
+pointer** through `out name: T` (needed for the `struct stat*` shape), and may be
+returned **by value** (I9; a non-extern struct return is still rejected). See
+[types: C-layout extern structs](types.md#c-layout-extern-structs-i6i9).
+
+An extern parameter typed `fn(A, B) -> R` is a C function pointer, and the
+argument must be a closure literal whose signature matches exactly:
+
+```
+extern "C" fn watch_path(interval_ms: Int, on_change: fn(Str) -> Int) -> Int
+
+let watcher = watch_path(250, |s: Str| 0)          // no capture
+let off = 1
+let board = drive_board(8, 8, |x: Int, y: Int, s: Int| off + s, 3)  // captures offset
+```
+
+Callback payloads are limited to C scalars and `Str`, and `Empty` return maps
+to `void`; containers, `Handle[Tag]`, and structs in callback signatures are
+rejected (the sqlite row-callback shape `fn(Handle[Void], Int, Str, Str)` needs
+`Handle`/`char**` payloads, slated with the struct-ABI work). Each closure
+argument is compiled to a real C-ABI thunk with the declared signature; the
+compiler registers the closure's captured env against the thunk, so the C side
+can invoke it later and the captures stay live.
+
+## Calling Aegis from C (`export fn`)
+
+The other direction is `export fn`: a top-level function whose name becomes a
+C-callable symbol with no mangling.
+
+```
+extern "C" fn simple_multiply(a: Int, b: Int) -> Int
+
+export fn aegis_add(a: Int, b: Int) -> Int {
+    return a + b
+}
+
+export fn aegis_scale(x: Int) -> Int {
+    return simple_multiply(x, 2)
+}
+```
+
+Exports are restricted to C-marshalable scalars: `Int`, `Float`, `Bool`, the
+sized widths `i8`..`u64` and `f32`, and `void` (a body with no `-> T` arrow).
+A `String`, list, or struct parameter is a compile error — C-layout `extern
+struct`s cross the *extern* boundary by value/out-param (see the I6 struct-ABI
+section), but `export fn` signatures stay scalar-only in v1; a struct export is
+still open.
+
+Export bodies are ordinary Aegis: they may call methods and `extern "C"`
+functions. Export functions are host-callable in v1, not Aegis-callable, so an
+export cannot recurse into Aegis code that calls it back.
+
+Emit a library with `--emit-lib` (static) or `--emit-dylib` (shared):
+
+```
+aegis exports.aegis --emit-lib libaegis.lib      # or libaegis.a on Linux
+aegis exports.aegis --emit-dylib aegis.dll       # or libaegis.so on Linux
+```
+
+`--emit-lib` writes the Aegis object alone, so the host supplies `main` and
+links the prebuilt runtime object shipped in `runtime/prebuilt/`:
+
+```
+clang -c host.c -o host.o
+clang host.o aegis.lib runtime/prebuilt/runtime-x86_64-pc-windows-msvc.obj -o app
+```
+
+`--emit-dylib` links the runtime into the shared library itself and, on
+Windows, writes the matching import library next to it (`aegis.dll` →
+`aegis.lib`), so a host links against the `.lib` and loads the DLL. Neither
+mode invents a default `aegis_main`; pass `--main App::run` explicitly if the
+host wants a library entry point.
+
+Both flags accept object/C inputs alongside `.aegis` sources (`-l`/`-L` apply
+to `--emit-dylib`, not to a static archive, which has no link step).
+
+## Timers and Scheduled Events
+
+Events can be scheduled to fire after a delay using the `after` keyword:
+
+```
+struct Timer {
+    mut count: Int
+}
+
+impl Timer {
+    fn start(mut self) -> Int {
+        emit Tick(1) after 100
+        emit Tick(2) after 200
+        emit Tick(3) after 300
+        
+        on Tick(n: Int) {
+            println("tick " + str(n))
+            if n >= 3 {
+                println("timer suite OK")
+            }
+        }
+        
+        return 0
+    }
+}
+```
+
+The delay is specified in milliseconds. The runtime maintains a timer queue
+and checks it on each event loop iteration. When a timer expires, the event
+is moved to the main event queue for processing.
+
+## Actors
+
+Actors are structs whose instances run independently, driven only by message
+events. Declare one with `actor`, create an instance with `spawn`, and deliver
+a message with `send`. An `on` handler declared inside an actor's impl captures
+the targeted instance as a mutable `self`:
+
+```
+actor Counter {
+    mut value: Int
+}
+
+impl Counter {
+    fn create() -> Int {
+        on Bump(amount: Int) {
+            self.value = self.value + amount
+        }
+        return 0
+    }
+}
+
+struct Harness {
+    mut seen: Int
+}
+
+impl Harness {
+    fn run(mut self) -> Int {
+        let alpha = spawn Counter { value: 0 }
+        let beta = spawn Counter { value: 10 }
+
+        send(alpha, Bump(1))
+        send(beta, Bump(3))
+
+        return 0
+    }
+}
+```
+
+- `spawn Name { fields }` builds an actor instance and returns an opaque
+  `Actor[Name]` handle; the runtime keeps a private heap copy per instance.
+- `send(handle, Event(args))` delivers the event to that exact instance; its
+  payload must match the `on` handler's signature.
+- A message event can only be delivered with `send`; emitting it plainly is a
+  semantic error. Plain events are still emitted with `emit` (target `-1`).
+- Actor handles support `==` / `!=`, and the compiler rejects `emit` of a
+  message, `send` of a non-message, sending a message to the wrong actor type,
+  and spawning a non-actor struct.
+
+## Receivers
+
+Methods take an explicit `self`. Use `mut self` to mutate fields, `self` to
+read. Methods are called on values: `account.deposit(100)`. Scalar receivers
+may be temporaries (`5.min(9)`, `16.0.sqrt()`, `"hi".is_hi()`); container
+receivers (`List`, `Map`) must be named bindings.
+
+A method with no return type (or an explicit `-> Empty`) returns `Empty` and
+can be called as a statement: `self.skip_ws()`. To call a `mut self` method the
+receiver must be a **mutable binding** — declare it `let mut c = ...`; calling
+`c.mutating_method()` on a plain `let` binding is a compile error.
+
+## Reserved words
+
+The keyword set above is reserved: those names are always lexed as keywords and
+cannot be used as identifiers (struct names, field names, variable names). For
+example a field named `err` is a parse error —
+`expected field name, found reserved keyword 'err'` — so spell it `error`.
+(This is distinct from `state`/`transition`, which the parser recognizes
+contextually rather than the lexer, but prefer not to reuse them either.)
+
+## Name resolution & diagnostics
+
+Semantic failures are reported as structured diagnostics with a category,
+location, and message, e.g.:
+
+```
+semantic error [type] at 17:13: arg 0 of min: expected Int, got Str
+```
+
+# language/types
+
+# Types & memory
+
+## Value types
+
+Primitives are single-slot machine values on the stack.
+
+| Type | Example | Notes |
+| --- | --- | --- |
+| `Int` | `42` | 64-bit signed |
+| `Float` | `3.5` | f64 |
+| `Bool` | `true` | |
+| `Str` | `"hi"` | ARC-copyable, `+` concatenates; `String` is a synonym |
+| `Empty` | - | unit type, used for side-effecting methods |
+| `List[T]` | `[1, 2, 3]` | runtime-allocated buffer, ARC reference counted |
+| `Map[K, V]` | `{ "a": 1 }` | keyed buffer |
+| `Func(params -> result)` | `\|x: Int\| x + 1` | closure, capture-by-value |
+| `Option[T]` | `some(5)` / `none` | sum type |
+| `Result[T, E]` | `ok` / `err(e)` | sum type |
+
+`String` and `Str` name the same type; both spellings are accepted in type
+annotations (`List[Str]` and `List[String]` are identical).
+
+## Opaque handles (I2)
+
+`Handle[Tag]` is a C pointer that Aegis can hold and pass but never look
+through. It is one pointer wide, like `Str`, and carries a phantom tag.
+
+| Type | Example | Notes |
+| --- | --- | --- |
+| `Handle[Tag]` | `Handle[FILE]` | opaque C pointer; tag is phantom, never declared |
+
+The tag exists for type safety only: `Handle[FILE]` and `Handle[sqlite3]` are
+different types, so the compiler rejects passing one where the other is
+expected, or comparing them with each other. It is not resolved, not declared,
+and carries no runtime cost - two handles with the same tag are the same type,
+and the tag is erased on the way to LLVM (both are `ptr`).
+
+What a handle supports is deliberately tiny, because the C side owns the
+memory: pass it to an `extern "C"` call, return it, store it in a local or a
+struct field, compare it with `==` / `!=` (pointer identity), and test it
+against `null`. Everything a raw pointer has and a safe language should not
+expose is gone: `h.field` is an `opaque` error, and ordering (`h1 < h2`) is
+rejected because pointers have no meaningful order.
+
+```aegis
+extern "C" fn sqlite3_open(path: Handle[CStr], db: Handle[Db]) -> Empty
+
+struct Db { }
+
+impl Db {
+    fn close(self, h: Handle[Db]) -> Empty {
+        if h == null {
+            return
+        }
+        // ... hand h back to the C library
+    }
+}
+```
+
+`null` is the null pointer. Because it has no tag, it only fits where a handle
+is expected, and it must be annotated to bind: `let h: Handle[Db] = null` is
+fine, `let h = null` is an error. That is what keeps an untyped null from
+being passed to a function expecting a different handle.
+
+## Out params (I3)
+
+An `extern "C"` parameter can be declared `out name: T`. It stands for `T*` on
+the C side — the C callee writes a result through it — so Aegis must pass an
+address, not a value. At the call site that address comes from `out name`:
+
+```aegis
+extern "C" fn sqlite3_open(path: Handle[CStr], out db: Handle[Db]) -> Int
+
+fn open(path: Handle[CStr]) -> Handle[Db] {
+    let rc = sqlite3_open(path, out db)
+    if rc != 0 {
+        return null
+    }
+    return db          // db: Handle[Db], bound by the call above
+}
+```
+
+The compiler allocates a slot big enough for `T`, passes its address to the C
+callee, and after the call binds `db` as a fresh local whose value is whatever
+the callee wrote. `db` becomes visible to the statements *following* the call
+(statement-level binding — reading it in the same statement is rejected).
+
+Holds for any type whose slot has a known width at the I16-boundary: scalars
+(the I1 widths bind `uint32_t*` etc. exactly), `Str` (`char**` — a C
+fetch-last-error getter writes the message Aegis opens as `Str`), and
+`Handle[Tag]` (`sqlite3**`). `let seven: u32 = 7` is a valid annotated literal.
+
+`out` is a context-sensitive marker, never a reserved word: `let mut out = ""`,
+`return out`, and a method param named `out` all still parse as identifiers.
+Rules enforced by the checker: a plain value cannot fill an out param, `out x`
+is rejected on non-out params and on method/export-fn params, a stray `out x`
+outside an extern call is rejected, out params cannot be aggregates
+(`out xs: List[Int]`), and an out variable cannot be read before its call.
+
+## C-string marshaling (I4)
+
+A `-> Str` extern return is a C `char*` that is at best transient — valid only
+until the callee's *next* call (`sqlite3_column_text` is invalidated by the next
+`step`/`column_*`; `sqlite3_errmsg` by the next sqlite3 call). The compiler
+copies it into an owned Aegis String the moment the call returns, and an
+`out msg: Str` readback is copied the same way:
+
+```aegis
+extern "C" fn sqlite3_column_text(stmt: Handle[Stmt], i: Int) -> Str
+extern "C" fn sqlite3_errmsg(db: Handle[Db]) -> Str
+
+let title = sqlite3_column_text(stmt, 0)   // snapshot, safe after the next call
+let err = sqlite3_errmsg(db)               // NULL from C reads back as ""
+```
+
+A NULL C string reads back as the empty string, so a getter that returns NULL
+when there is nothing to say composes (`if err == "" { ... }`) instead of
+crashing the string machinery. On the way out nothing changes: `Str` params
+still cross zero-copy, because Aegis strings are already NUL-terminated heap
+buffers. When a callee may *retain* the pointer past the call or scribble on
+the buffer, hand it a copy with the declared intrinsic:
+
+```aegis
+extern "C" fn aegis_str_cstr(s: Str) -> Str   // owned NUL-terminated copy
+```
+
+The two intrinsics `aegis_str_cstr` / `aegis_str_from_cstr` are the marshaling
+primitives; their own returns are already owned, so they are exempt from the
+automatic copy. Strings are heap buffers never freed individually, so each
+marshaled snapshot is one leak per crossing — identical to every other runtime
+string, and the price of making C's transient buffers durable.
+
+## Function-pointer callbacks (I5)
+
+An extern signature may declare a parameter of type `fn(...) -> R`, which is a
+C function pointer. Aegis closures marshal to a real `cdecl` thunk with the
+declared signature, so callback-holding C APIs are reachable directly:
+
+```aegis
+extern "C" fn watch_path(interval_ms: Int, on_change: fn(Str) -> Int) -> Int
+extern "C" fn drive_board(
+    cols: Int, rows: Int, cell: fn(Int, Int, Int) -> Int, ticks: Int) -> Int
+```
+
+Callback parameter and return types must be C-scalars (`Int`, `Float`, `Bool`,
+the I1 widths, `f32`; `Empty` return maps to `void`), or `Str`. `Str` callback
+params are C `char*` values the thunk snapshots into owned Aegis Strings
+(runtime `aegis_str_from_cstr`), so the closure sees a durable owned copy.
+Containers and `Handle[Tag]` are not yet allowed as callback payloads.
+
+A callback argument must be a closure literal, and its signature must match the
+declared `fn(...) -> R` exactly:
+
+```aegis
+// 0-finger closure: close over nothing
+let watcher = watch_path(250, |s: Str| 0)
+// captures a local; the env block rides in the registry, so later ticks see it
+let ticks = 0
+let done = drive_board(8, 8, |x: Int, y: Int, state: Int| ticks + state, 3)
+```
+
+(The motivating sqlite shape — `sqlite3_exec(db, sql, row_cb, arg, out err)`
+with `row_cb: fn(Handle[Void], Int, Str, Str) -> Int` — needs `Handle[` and
+`char**` callback payloads, which land with the struct-ABI work (I6); scalar
+and `Str` payloads already work.)
+
+Each call site that passes a closure generates a pair of functions: the closure
+`aegis.lambda.N` (its env block, slot 0 = fn pointer) and the C-facing thunk
+`aegis.cb.N` with the exact declared C signature. Before the extern call the
+codegen stores the env block in the callback registry keyed by the thunk's own
+code address (`aegis_registry_set`); the thunk looks it up again on entry
+(`aegis_registry_get`), pulls the closure fn pointer from env slot 0, converts
+the C arguments into i64 slots, calls the closure through the slot ABI, and
+converts the slot result back (a `void` thunk returns nothing). A thunk whose
+env is never unregistered keeps the captures alive for the whole program, so a
+callback may fire *after* its calling statement returns — `sqlite3_exec` row
+callbacks and UDFs invoked later are safe.
+
+At the callsite the compiled extern call passes the thunk's address where the
+signature declares the function pointer; the C side just sees a plain callback.
+Signatures are checked precisely — mismatches produce
+`callback param N of '...': closure signature ... does not match declared ...`,
+non-closure arguments are rejected (`needs a closure literal, got a value`),
+and non-scalar/Str callback signatures are rejected at the declaration
+(`C callback parameter types must be scalars ... or Str, got ...`).
+
+## C-layout extern structs (I6/I9)
+
+`extern struct` declares a struct whose layout is dictated by C, not by Aegis —
+the shape from a C header (`struct stat`, win32 structs), usable directly across
+the extern boundary:
+
+```aegis
+extern struct Point { x: Int, y: Int }
+extern struct Node { data: Int, next: Handle[Node] }
+extern struct Stats { size: Int, mode: u32, mtime: Int }
+```
+
+Fields are limited to C-as-Aegis data: the C scalars (`Int`, `Float`, `Bool`,
+`i8..u64`, `f32`), `Handle[T]`, and nested extern structs. Owned containers and
+non-extern Aegis structs are rejected, as are `mut`/`pub` on fields (raw C
+memory is always writable). Layout follows the host C compiler's natural packing
+so the Aegis declaration and the C struct agree byte-for-byte; on Windows `long`
+is 32-bit, so host code should use `long long` for Aegis `Int` fields.
+
+An extern struct crosses the boundary **by value** as a parameter. Codegen picks
+the host ABI per target — on Windows x64 aggregates larger than 8 bytes pass by
+reference (`ptr`), on SysV up-to-16-byte aggregates pass by value — and
+**by pointer** through an `out` slot, which is the `Point*`/`struct stat*` the C
+callee writes:
+
+```aegis
+extern "C" fn pnt_sum(a: Point, b: Point) -> Int
+extern "C" fn pnt_mul(out p: Point, k: Int) -> Empty
+// p is a fresh Point*; C fills it, and p.x/p.y read back from the struct
+pnt_mul(out p, 10)
+```
+
+An extern function may also **return** an extern struct by value (I9), which
+mirrors the param ABI: the aggregate returns in registers when it fits the
+target's rule (≤8 bytes on Windows x64, ≤16 on SysV) and otherwise through the
+C callee's hidden struct-return pointer, which codegen reproduces by passing a
+caller-allocated slot as the first argument. The result binds like any struct
+local:
+
+```aegis
+extern "C" fn pnt_make(x: Int, y: Int) -> Point
+let p = pnt_make(30, 4)   // p.x == 30, p.y == 4
+```
+
+A non-extern Aegis struct may **not** be returned by value (its layout is
+compiler-defined); give the extern function an `out` param instead — the
+diagnostic says which type and why. Pointer fields from real headers (e.g.
+`struct _Node* next`) are declared as `Handle[Tag]` fields, which ride raw in the
+struct and let `null` stand for C `NULL`.
+
+## Sized numeric widths (I1)
+
+Beyond the i64 `Int` / f64 `Float` defaults, the compiler provides the sized
+widths used at FFI and systems boundaries:
+
+| Type | LLVM | Notes |
+| --- | --- | --- |
+| `i8` / `i16` / `i32` | i8 / i16 / i32 | signed, wraps on overflow |
+| `u8` / `u16` / `u32` / `u64` | i8 / i16 / i32 / i64 | unsigned; `<`/`<=`/`>`/`>=` and `/`/`%` use unsigned semantics |
+| `f32` | f32 | single-precision float |
+
+Sized values are native widths at struct fields, method parameters/returns, and
+`extern "C"` signatures — so a C function taking `uint32_t` binds exactly, with
+no widening shim. Inside containers (List/Map) and event payloads they ride the
+i64/f64 slot ABI, sign- or zero-extending on write and truncating on read.
+
+Literals coerce ergonomically: `let x: u32 = 5` and `c + 1` (a bare integer
+literal adopts the other operand's width). Between sized types and the i64/f64
+defaults, conversion is explicit via the numeric conversion methods on any
+numeric receiver:
+
+```aegis
+let a: i8 = 127
+let b: i16 = -300
+let c: u32 = 4000000000
+let d: f32 = 1.5
+let narrow = b.to_i8()      // truncates: -300 -> -44 (wraps)
+let widen   = a.to_i64()    // 127
+let u       = c.to_u64()    // 4000000000
+let f64     = d.to_f64()    // 1.5 as f64
+let f32     = f64.to_f32()  // back to f32
+```
+
+`to_int`/`to_float` (with `to_i64`/`to_f64` aliases) convert to the i64/f64
+defaults; `to_i8()..to_u64()/to_f32()` convert to a sized width. Arithmetic
+between two different widths is an error unless one side is a bare literal —
+convert explicitly otherwise.
+
+## User sum types (enums, L7)
+
+`enum` declares a first-class sum type with named variants; each variant may
+carry up to four payload fields (or none):
+
+```aegis
+enum Shape {
+    Circle(Float),
+    Rect(Float, Float),
+    Empty,
+}
+```
+
+Values are built with the variant path, exactly like a `State::Variant`:
+
+```aegis
+let c = Shape::Circle(2.0)
+let r = Shape::Rect(3.0, 4.0)
+let e = Shape::Empty
+```
+
+A `match` dispatches on the discriminant and binds payloads; the compiler
+**proves coverage** — every variant must be handled (or a `_` catch-all arm
+must exist):
+
+```aegis
+match s {
+    Shape::Circle(radius) => { /* radius: Float */ }
+    Shape::Rect(w, h)      => { /* w, h: Float */ }
+    Shape::Empty           => { }
+}
+```
+
+Missing a variant is a compile error: `non-exhaustive match on 'Shape':
+missing Rect`. Variant arity and payload types are checked at construction
+(`variant 'Shape::Circle' expects 1 payload argument, got 2`).
+
+An enum-typed payload can itself be matched directly in the pattern — a nested
+variant chain (`Outer::A(Inner::B(x))`) binds the inner payload and dispatches
+on both discriminants; `_` in a payload slot is a wildcard, and a plain-name
+bind (`Kind::Pair(inner)`) binds the whole inner enum. Coverage extends one
+level: breaking a payload into nested variants requires covering all of them
+(see *Nested enum patterns* in the control-flow docs).
+
+## Container ABI
+
+A `List[T]` value is a two-field struct `{ i64 len, ptr handle }`; the handle
+points at a `runtime::aegis_list` (`len`, `cap`, `data`, `rc`). The compiler
+keeps the logical length mirrored in the value struct so reads do not need a
+runtime call; mutations resync it. Strings and maps use the same
+pointer-encoded scheme. All containers are reference counted; aliases are
+tracked by the compiler and copied where the semantics require it.
+
+## Memory & aliasing
+
+- Stack-by-default: locals are alloca'd in the frame.
+- Escape is inferred: values the compiler cannot keep on the stack become
+  ARC pointers automatically. There is no `Box` or `Rc` spelling.
+- There are **no nulls**. Optionality is modeled with `Option[T]`; the
+  compiler tracks unhandled `Option`/`Result` values as an error.
+- `mut` is visible to the compiler: assigning through an immutable binding is
+  a compile error, as is mutating a list through an immutable binding
+  (`xs.pop()` requires a `mut` list).
+
+# language/control-flow
+
+# Control flow
+
+## Branches
+
+```aegis
+if cond { ... } else { ... }
+```
+
+`else if` chains are supported and are printed back canonically:
+
+```aegis
+if n >= 90 {
+    grade = "A"
+} else if n >= 80 {
+    grade = "B"
+} else {
+    grade = "F"
+}
+```
+
+The parser desugars `else if` into a nested `else { if ... }`; the deterministic
+formatter recognises that shape and emits `else if` again, so formatting stays
+idempotent.
+
+Conditions must be `Bool`; a non-`Bool` condition is a type error.
+
+## Block scope
+
+Every block — an `if`/`else` branch, a `loop` body, and a `match` arm — is its
+own scope. A `let` declared inside a block is visible only within that block:
+
+```aegis
+if ready {
+    let batch = [1, 2, 3]
+    println(str(batch.length()))   // ok: 3
+}
+println(str(batch.length()))       // semantic error [name]: undefined variable 'batch'
+```
+
+A block may re-declare (shadow) a name from an enclosing scope. The inner
+binding is used inside the block and the outer binding is restored after it:
+
+```aegis
+let xs = [1, 2]
+if flag {
+    let xs = [1, 2, 3, 4]
+    // xs.length() == 4 here
+}
+// xs.length() == 2 again
+```
+
+Container locals (`List`, `Map`, closures) declared in a block are released at
+the end of that block — and on `break`, `continue`, or `return` out of it — so
+per-iteration allocations inside a loop or branch do not leak.
+
+## The single loop
+
+There are no `for(i=0;...)` loops. Iteration and repetition use the keyword
+`loop`:
+
+```aegis
+loop item in items { ... }   // iteration
+loop { ... }                 // infinite; requires break
+```
+
+`break` and `continue` are available.
+
+`loop c in s` also walks a `Str` one character at a time, binding `c` to a
+fresh single-character `Str` each iteration:
+
+```aegis
+loop c in "a b" {
+    if c == " " {
+        // space
+    }
+}
+```
+
+Individual characters are also reachable with `s[i]`, which yields a
+single-character `Str`. The loop pairs naturally with `match` on the
+single-char binding (`"0" => ...`, `_ => ...`).
+
+### Map iteration (L8)
+
+`loop (k, v) in m` iterates a map's entries, binding the key to `k` and the
+value to `v` each iteration:
+
+```aegis
+let scores = {"alice": 10, "bob": 7}
+let mut total = 0
+loop (name, score) in scores {
+    total = total + score
+}
+```
+
+`k` gets the map's key type and `v` its value type. Iterating something that
+is not a `Map` is a type error (`loop (k, v) iterates a Map, got List(Int)`).
+Entries arrive in hash-bucket order, which is unspecified — check aggregate
+properties or key membership, not any particular sequence.
+
+### Pair views over lists (L8b)
+
+`loop (k, v) in xs.enumerate()` walks a list in order, binding `k` to the
+running index (`Int`) and `v` to each element:
+
+```aegis
+let xs = ["a", "b", "c"]
+let mut out = ""
+loop (i, x) in xs.enumerate() {
+    out = out + str(i) + x
+}
+```
+
+`loop (k, v) in xs.zip(ys)` walks two lists in lockstep, binding `k` to `xs[i]`
+and `v` to `ys[i]`, stopping at the shorter list:
+
+```aegis
+loop (a, b) in xs.zip(ys) {
+    // a from xs, b from ys
+}
+```
+
+`enumerate()`/`zip()` are pair *views*, not first-class values — they are only
+valid as the direct iterable of a `loop (k, v) in`; anywhere else they are
+unknown methods (`no method 'enumerate' on type List(Int)`). Using them over a
+non-list is a type error (`enumerate() requires a List`, `zip() requires two
+Lists`).
+
+### User iteration protocol (L8e)
+
+Any struct with a `next(mut self) -> Option[T]` method can be the iterable of
+`loop item in x`. The method shape is the protocol, whether `next` is declared
+directly or via a trait:
+
+```aegis
+struct Range2 {
+    mut lo: Int,
+    hi: Int,
+}
+
+impl Range2 {
+    fn next(mut self) -> Option[Int] {
+        self.lo = self.lo + 1
+        if self.lo >= self.hi {
+            return none
+        }
+        return some(self.lo)
+    }
+}
+
+let mut r = Range2 { lo: 0, hi: 4 }
+let mut total = 0
+loop x in r {
+    total = total + x
+}
+```
+
+The loop materializes the iterable into a mutable slot and calls `next()` each
+iteration, binding the `some` payload to the item and exiting on `none`.
+`break`/`continue` work normally. Iterating a type without `next` is a type
+error (`loop item in requires a List, String, or a type with a next() ->
+Option[T]`).
+
+## match
+
+Sum types destructure with `match`. Every arm is `pattern => { ... }` — the
+body is a statement block and there are no commas between arms:
+
+```aegis
+match r {
+    ok(v) => {
+        println(str(v))
+    }
+    err(e) => {
+        println("failed")
+    }
+}
+```
+
+`|` joins alternative patterns in one arm (`1 | 2 | 3 => { ... }`). `_` is
+the catch-all wildcard, usable only as the whole pattern of an arm — it
+cannot appear inside a constructor pattern (`err(_)` is not accepted; bind
+the field as `err(e)` and ignore `e`). Patterns cover the error
+constructors: `ok(v)` / `err(e)` for `Result[T, E]` and `some(v)` / `none`
+for `Option[T]`. The compiler rejects unhandled `Result`/`Option`
+scrutinees; `?` propagates them.
+
+### Pattern depth (L7)
+
+An arm may carry a **guard** — a Bool expression evaluated after the pattern
+matches, with the arm's bindings in scope; a failed guard falls through to the
+next arm:
+
+```aegis
+match n {
+    x if x < 0 => { return "neg" }
+    x if x == 0 => { return "zero" }
+    _ => { return "other" }
+}
+```
+
+**Range patterns** match a half-open interval over an `Int` scrutinee:
+
+```aegis
+match n {
+    0..10 => { /* 0 <= n < 10 */ }
+    10..20 => { /* 10 <= n < 20 */ }
+    _ => { }
+}
+```
+
+`|` alternatives may each carry their own payload bindings, dispatched into a
+shared body — every alternative's variant counts toward the exhaustiveness
+check:
+
+```aegis
+match k {
+    Kind::Int(n) | Kind::Nil => { return 5 }
+    Kind::Str(s) => { return s.length() }
+}
+```
+
+### Nested enum patterns (L7)
+
+A variant payload that is itself an enum can be matched directly — the inner
+payload binds through the two discriminants:
+
+```aegis
+match k {
+    Kind::Pair(Kind::Int(m)) => { return m }        // inner payload binds m
+    Kind::Pair(Kind::Nil) => { return 0 }           // nested unit variant
+    Kind::Pair(_) => { return 1 }                   // `_` wildcard payload
+    Kind::Int(n) => { return n }
+    Kind::Nil => { return -1 }
+}
+```
+
+A plain-name payload bind (`Kind::Pair(inner)`) still binds the whole inner
+enum, which can then be matched separately. Guards can reference nested payload
+names (`Kind::Pair(Kind::Int(m)) if m > 10 =>`). Exhaustiveness extends one
+level: when a payload is broken out into nested variants, all of its variants
+must be covered too — `Kind::Pair(Kind::Int(n))` alone reports
+`non-exhaustive match on 'Kind': missing Pair, Nil inside Pair::Kind`. A `_` or
+plain-name payload bind counts as a catch-all for the inner enum.
+
+## Errors as values
+
+Functions signal failure by returning `Result[T, Error]` (or `Option`). A
+`?` propagates the error out of the enclosing function; otherwise a returned
+`Result`/`Option` must be destructured before the program is accepted.
+
+`ok`, `err`, `some`, and `none` are expressions (a payload is optional, so a
+bare `ok` is valid). A method that returns nothing — no return type, or an
+explicit `-> Empty` — must use a bare `return`; `return ok` is only valid when
+the method's return type is a `Result`.
+
+# language/contracts
+
+# Design by contract
+
+Contracts are first-class: every function may declare a precondition and a
+postcondition. The compiler carries them through codegen and the generated
+binary checks them at runtime. A violated contract aborts with a diagnostic
+such as:
+
+```
+AEGIS ASSERT FAILED: BankAccount.deposit: requires failed
+```
+
+```aegis
+impl BankAccount {
+    requires amount > 0
+    ensures self.balance == old(self.balance) + amount
+    fn deposit(mut self, amount: Int) -> Result[Empty, Error] {
+        self.balance = self.balance + amount
+        return ok
+    }
+}
+```
+
+`old(expr)` inside an `ensures` clause is evaluated before the body runs and
+substituted into the postcondition, which is checked after the body. This
+turns "what must be true here and now" into something the runtime can verify,
+which is especially valuable for machine-and-human co-authoring: the contract
+is executable documentation.
+
+Contracts are also used at the call boundary inside the standard library to
+express invariants that callers must respect, e.g. `Stack.pop` requires
+`!self.is_empty()`.
+
+# language/events
+
+# Events & state machines
+
+## Actor-style events
+
+Concurrency is the actor model; there are no mutexes or semaphores. Structs
+communicate by emitting and receiving events:
+
+```aegis
+emit DomainEvent.Action(payload)
+```
+
+```aegis
+on DomainEvent.Action(payload) {
+    // handle payload
+}
+```
+
+The runtime event loop dispatches emitted events to `on` handlers; emit/on
+round-trips are exercised by the test suite.
+
+## Native state machines
+
+`state` declares a set of named variants; an `impl` can be pinned to a state
+with `impl X @ State::Variant`. Transition methods are only legal in the
+guarded context, and `self.transition(State::Next)` moves the instance.
+
+```aegis
+state OrderState { Pending, Paid, Shipped }
+
+struct Order { }
+
+impl Order @ OrderState::Pending {
+    fn process_payment(mut self) {
+        // ... logic ...
+        self.transition(OrderState::Paid)
+    }
+}
+```
+
+This is Aegis's answer to temporal bugs: "which state is this object in?" is a
+compile-time fact, not a field the developer can forget to maintain.
+
+# language/closures
+
+# Closures & higher-order methods
+
+Lambdas are the expression form `|param: T| expr` and the block form
+`|x: T| { ... }`. They are annotated as `Func(params -> result)` where stored
+in a typed binding:
+
+```aegis
+let inc = |n: Int| n + 1          // Func(Int -> Int)
+```
+
+Closures **capture by value** from the enclosing scope: scalars (`Int`, `Float`,
+`Bool`) and, since L8, containers — `List`, `Map`, `String`. One-pointer values
+capture like scalars too: an `I2` `Handle[T]`, or another closure value (`Func`),
+whose nested environment is retained by the capturing env and ARC-released when
+the closure is freed. A captured
+container is ARC-retained into the closure's environment block and released when
+the closure is freed, so captured data stays alive for the closure's lifetime
+and is cleaned up after. Capturing a `self` or a `Named` struct is a semantic
+error.
+
+A closure body may call anything the surrounding function can: methods on
+captured or constructed values, compiler builtins (`print`, `str`, ...), and
+`extern "C"` functions. Function names are lowered to direct calls — they are
+never captured, so a closure that uses `println` or an extern fn needs no extra
+slots.
+
+```aegis
+let reader = |x: Int| h_counter_get(c) + x   // captures the handle, calls an extern
+let twice = |x: Int| step(step(x))           // captures the closure value `step`
+```
+
+```aegis
+let rank = {"a": 3, "b": 1, "c": 2}
+let names = ["a", "b", "c"]
+let ordered = names.sort(|x, y| rank.get_or(x, 0) - rank.get_or(y, 0))
+```
+
+A sort comparator (or any `map`/`filter`/`fold` predicate) may read a captured
+map or list — the L8 gate pipeline is a filter -> map -> fold over a captured
+map with no index bookkeeping.
+
+## Nested closures (L8d)
+
+A lambda may be defined inside another lambda's body. The inner closure reads
+the outer closure's params, locals, and captures out of the enclosing scope at
+definition time; what it needs that neither binder set covers becomes a
+*transitive* capture of the outer closure. Currying works directly:
+
+```aegis
+let add = |a: Int| |b: Int| a + b
+let add5 = add(5)         // a closure
+let r = add5(3)           // 8
+add(5)(3)                 // also 8 — any Func-typed expression is callable
+```
+
+A block-bodied closure with no `-> Ret` annotation infers its return type from
+its `return <expr>`, so a closure that returns a closure types correctly:
+
+```aegis
+let mk = |offset: Int| {
+    let inner = |x: Int| offset + x
+    return inner
+}
+mk(10)(2)                 // 12
+```
+
+## Higher-order list methods
+
+`List[T]` has first-class HOFs, lowered to C-runtime callbacks:
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `map(f)` | `List[T].map(Func(T -> U)) -> List[U]` | transform each element |
+| `filter(p)` | `List[T].filter(Func(T -> Bool)) -> List[T]` | keep where true |
+| `fold(init, f)` | `fold(Func(B -> T -> B)) -> B` | left fold |
+| `sort(lt)` | `List[T].sort(Func(T -> Bool)) -> List[T]` | stable sort by predicate |
+
+```aegis
+let evens = xs.filter(|x| x % 2 == 0)
+let doubled = evens.map(|x| x * 2)
+let total = doubled.fold(0, |acc: Int, x| acc + x)
+```
+
+`map`/`filter`/`fold`/`sort` return new lists; the input list is not mutated.
+HOF predicates must return `Bool` and match the closure arity, both enforced
+semantically.
+
+# stdlib/math
+
+# Int & Float math
+
+## Numeric conversions
+
+There is no implicit cast (and no `as` operator) between numeric types.
+Conversion is an explicit method on the sealed builtin:
+
+| Receiver | Method | Returns | Notes |
+| --- | --- | --- | --- |
+| `Int` | `to_float()` | `Float` | exact for values in range |
+| `Float` | `to_int()` | `Int` | truncates toward zero |
+
+```aegis
+let f = 3.to_float()     // 3.0
+let n = 3.9.to_int()     // 3
+let m = (-3.9).to_int()  // -3
+```
+
+## Compiler builtins
+
+These dispatch to the runtime's math helpers (like `libm`), because the
+operation has no source-level expression:
+
+| Receiver | Method | Returns | Notes |
+| --- | --- | --- | --- |
+| `Float` | `floor()` | `Float` | largest integer `<= self` |
+| `Float` | `ceil()` | `Float` | smallest integer `>= self` |
+| `Float` | `trunc()` | `Float` | round toward zero |
+| `Float` | `round()` | `Float` | nearest integer, halves away from zero |
+| `Float` | `sqrt()` | `Float` | |
+| `Float` | `pow(e)` | `Float` | `self` raised to `e`; `e` must be a `Float` |
+| `Float` | `sin()` / `cos()` / `tan()` | `Float` | argument in radians |
+| `Float` | `log()` / `log10()` / `exp()` | `Float` | natural / base-10 / `e^x` |
+| `Float` | `format(digits)` | `Str` | fixed-decimal (`%.*f`) with `digits` places |
+| `Int` | `pad(width)` | `Str` | zero-padded decimal, right-aligned to `width` |
+
+```aegis
+let a = 16.0.sqrt()     // 4.0
+let b = 2.75.floor()    // 2.0
+let c = 2.5.round()     // 3.0
+let d = 2.0.pow(10.0)   // 1024.0
+let e = (1.0).log()     // 0.0
+let g = 3.14159.format(2) // "3.14"
+let h = 42.pad(5)         // "00042"
+```
+
+`format`/`pad` produce text; use them where a value must be printed with
+fixed decimals or zero-padded width (interpolation format specifiers —
+`"{x:.2f}"`, `"{i:05d}"` — cover the same need inline).
+
+Argument types are checked like any other method, so `(2.0).pow(3)` (an `Int`
+exponent) is rejected with `pow exponent must be a Float, got Int`. Use
+`3.to_float()` when the exponent is an integer value. The `**` operator is
+sugar for these: `a ** b` desugars to `a.pow(b)` (right-associative, so
+`2 ** 3 ** 2` is `2 ** (3 ** 2)`).
+
+`String.to_float()` (see [string](string.md)) is the parsing counterpart: it
+returns `Result[Float, Str]` and, together with `Float.to_int()`, gives a full
+text -> number -> text path now that no C shim is needed.
+
+## Aegis seed methods (`stdlib/mathstr.aegis`)
+
+`impl Float`, `impl Int`, and `impl String` are **sealed builtins**: they may
+only be implemented in the standard library, and by-value semantics apply
+(`self` is not a reference).
+
+```aegis
+impl Int {
+    fn min(self, o: Int) -> Int { if self < o { return self } return o }
+    fn max(self, o: Int) -> Int { if self > o { return self } return o }
+    fn abs(self) -> Int         { if self < 0 { return -self } return self }
+    requires e >= 0
+    fn pow(self, e: Int) -> Int { let mut r = 1; loop k in 0..e { r = r * self }; return r }
+}
+impl Float {
+    fn min(self, o: Float) -> Float { if self < o { return self } return o }
+    fn max(self, o: Float) -> Float { if self > o { return self } return o }
+    fn abs(self) -> Float           { if self < 0.0 { return -self } return self }
+}
+impl String {
+    fn starts_with(self, p: String) -> Bool { ... }
+    fn ends_with(self, p: String) -> Bool   { ... }
+    fn contains(self, sub: String) -> Bool  { ... }
+}
+```
+
+Because these are ordinary methods on the sealed targets, the compiler
+type-checks each argument the same way it checks any method:
+`5.min("boom")` fails with `arg 0 of min: expected Int, got Str`.
+Calling them on temporaries is supported: `5.min(9)`, `16.0.sqrt()`.
+
+Integer `Int.pow` is a real Aegis method (it needs no runtime helper), unlike
+`Float.pow` which must go through `libm`. The seed module is only in scope when
+`stdlib/mathstr.aegis` is among the compiler inputs — the stdlib is not
+auto-loaded.
+
+
+# stdlib/string
+
+# String operations
+
+`String` (spelled `Str` in type annotations) is an ARC-copied immutable
+string. `+` concatenates; `==` / `!=` compare by content. Individual
+characters are reached with a `loop c in s` iteration, which binds `c` to a
+single-character `Str` (see [control flow](../language/control-flow.md)).
+
+## Interpolation
+
+A string literal can embed `{expr}` holes that are evaluated and stringified
+at run time:
+
+```aegis
+let n = 42
+let msg = "score: {n} of {n + 1}"   // "score: 42 of 43"
+let who = "world"
+println("hello {who}")              // "hello world"
+```
+
+Only str()-able scalar holes are allowed — `Int`, `Float`, `Bool`, and
+`String`. Containers are rejected with
+`interpolated values must be str()-able scalars or String, got List(Int)`.
+Literal braces are written `\{` and `\}` (an unescaped `{` always starts a
+hole). Interpolation is a first-class AST node (`Expr::Interp`), so it
+round-trips through the S3 wire schema (`--ast-json`) and the deterministic
+formatter (`--fmt`).
+
+### Format specifiers (L6)
+
+A hole may carry a format specifier after a `:`:
+
+```
+{expr:[[fill]align][width][.precision][type]}
+```
+
+- `align`: `<` (left), `>` (right), `^` (center). Numbers default right,
+  strings left.
+- `fill`: a single character before the align mark (e.g. `0>8`); a `0`-prefixed
+  width (`05`) is zero-padding shorthand for right-aligned numbers.
+- `width`: minimum field width in characters.
+- `.precision`: decimal places for a Float (`f`), or significant digits for `g`.
+- `type`: `f` fixed-point Float (`%f`), `d` decimal Int, `s` String, `g` the
+  general `str(Float)` form (the default).
+
+```aegis
+let x = 3.14159
+let i = 42
+"{x:.2f}"      // "3.14"
+"{x:>10.2f}"   // "      3.14"
+"{i:05d}"      // "00042"
+"{i:>6}"       // "    42"
+```
+
+The type must match the value: `"{i:.2f}"` on an `Int` is a semantic error
+(`format spec type 'f' requires a Float, got Int`). The spec is stored
+verbatim in the AST (`FormatSpec`), so it round-trips `--ast-json` and `--fmt`.
+For fixed-decimal or padded output outside interpolation, `Float.format(digits)`
+and `Int.pad(width)` are compiler builtins:
+
+## Compiler builtins
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `length()` | `Int` | byte length |
+| `trim()` | `Str` | new string with leading/trailing ASCII whitespace removed |
+| `split(delim)` | `List[Str]` | split on a delimiter; empty delim => one whole-string piece; `""` => one empty piece |
+| `to_upper()` | `Str` | ASCII uppercase mapping (fresh copy) |
+| `to_lower()` | `Str` | ASCII lowercase mapping (fresh copy) |
+| `repeat(n)` | `Str` | the string repeated `n` times; empty when `n <= 0` |
+| `to_float()` | `Result[Float, Str]` | parse a full float literal; `err` on empty/junk/overflow |
+
+```aegis
+let s = "  a,b,c  "
+let t = s.trim()            // "a,b,c"
+let parts = t.split(",")    // List[Str] ["a","b","c"]
+let joined = parts.join("|") // "a|b|c"
+let up = "abc".to_upper()   // "ABC"
+let bang = "ha".repeat(3)   // "hahaha"
+```
+
+`trim`/`split` allocate: `trim` returns a `Str`, `split` returns a
+`List[Str]`. Both are compiler builtins because they need substring
+construction there is no source primitive for. They validate their arguments
+semantically: `s.split(42)` reports
+`split delimiter must be a String, got Int`.
+
+## Sealed `impl String` methods
+
+`starts_with` / `ends_with` / `contains` are defined as ordinary methods on
+the sealed builtin target in `stdlib/mathstr.aegis` and compose with the
+builtins above. `List[Str].join(separator)` produces a string from the
+elements; the separator must be a `String`.
+
+`String.to_int()` is also a sealed `impl String` method in
+`stdlib/mathstr.aegis`. It parses a signed decimal integer and returns
+`Result[Int, String]`: `"42".to_int()` is `ok(42)`, `"-17".to_int()` is
+`ok(-17)`, and empty input or a non-digit character yields `err(...)`. This
+is the primitive for argv parsing with `argc()` / `arg(i)`.
+
+### Slicing, search and padding (M2)
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `index_of(sub)` | `Int` | first index of `sub`, or `-1` when absent; `""` yields `0` |
+| `substring(start, end)` | `Str` | half-open `[start, end)`; `requires 0 <= start <= end <= length` |
+| `replace(from, to)` | `Str` | every non-overlapping `from`; empty `from` returns self |
+| `is_digit()` | `Bool` | one-char `"0"`..`"9"` |
+| `is_alpha()` | `Bool` | one-char ASCII letter |
+| `is_space()` | `Bool` | space, `\t`, `\n`, or `\r` |
+| `pad_left(width, fill)` | `Str` | left-pad with `fill` toward `width` (no-op once wide enough) |
+| `pad_right(width, fill)` | `Str` | right-pad with `fill` toward `width` |
+
+```aegis
+let w = "hello world"
+w.index_of("world")       // 6
+w.substring(0, 5)         // "hello"
+w.replace("o", "0")       // "hell0 w0rld"
+"7".pad_left(3, "0")      // "007"
+"7".is_digit()            // true
+```
+
+These are ordinary Aegis methods built from char indexing and `+`. There is
+still no source-level substring primitive, so `substring` concatenates one
+character at a time.
+
+## Map operations
+
+`Map` is a native hash container with the following builtins:
+
+| Method | Requires | Returns | Notes |
+| --- | --- | --- | --- |
+| `length()` | - | `Int` | |
+| `contains(k)` | - | `Bool` | |
+| `insert(k, v)` | `mut` map | `Int` | upserts, returns new length |
+| `remove(k)` | `mut` map | `Bool` | `true` if key was present, `false` if absent |
+
+# stdlib/list
+
+# List operations
+
+`List[T]` is a grow-only runtime buffer with ARC reference counting. A list
+value (`{ i64 len, ptr handle }`) stays small; the handle owns the storage.
+
+## Compiler builtins
+
+| Method | Requires | Returns | Notes |
+| --- | --- | --- | --- |
+| `length()` | - | `Int` | current logical length |
+| `append(v)` | `mut` list | `Int` | append, returns new length |
+| `insert(idx, v)` | `mut` list | - | insert at index |
+| `get(idx)` | - | element | `xs[idx]` indexing is equivalent |
+| `pop()` | `mut` list | element | remove + return the last element |
+| `contains(x)` | - | `Bool` | whether an element equal to `x` is present |
+| `index_of(x)` | - | `Int` | index of first match, `-1` when absent |
+| `reverse()` | - | `List[T]` | fresh reversed copy (original untouched) |
+| `dedupe()` | - | `List[T]` | fresh copy with duplicates removed, keeping the first occurrence |
+| `slice(a, b)` | - | `List[T]` | fresh copy of the half-open range `[a, b)`, clamped to `[0, len]` |
+| `map(f)` | - | `List[U]` | see [closures](../language/closures.md) |
+| `filter(p)` | - | `List[T]` | predicates must be `Func(T -> Bool)` |
+| `fold(init, f)` | - | `B` | left fold |
+| `sort(lt)` | - | `List[T]` | new sorted list |
+| `join(sep)` | `T = Str` | `Str` | join string elements |
+
+`append` and `pop` require a **mutable** receiver (a `mut` binding). Calling
+`pop()` on an immutable list is a compile error:
+`pop requires mutable list 'xs'`.
+
+`dedupe()` compares elements by slot, so it removes duplicate `Int`/`Bool`/
+`Handle` values by value and `String` elements by identity (two distinct but
+equal strings are both kept). It returns a fresh list and leaves the receiver
+untouched.
+
+## Composite receivers
+
+`map`/`filter`/`fold`/`sort` (and any list-valued method result) must be
+bound to a named variable before further method calls - the receiver of a
+chain like `xs.map(f).length()` must be a plain identifier, matching the
+"temp receivers are scalars only" rule. Bind intermediates instead:
+
+```aegis
+let ys = xs.map(|x| x * 2)
+let n = ys.length()
+```
+
+## Empty lists
+
+`[]` type-checks as `List[Any]` and is assignable to any `List[T]` field or
+binding, so collection structs can start from `mut items: List[Int]` with an
+empty initializer - the `types_compatible` rule recurses into element types.
+
+# stdlib/collections
+
+# Collections
+
+Beyond the builtin containers, the standard library ships seed collections
+written in Aegis itself under `stdlib/`. Each is generic: `Stack[T]`, `Set[T]`,
+`Queue[T]`, `Deque[T]` are monomorphized into one concrete struct per element
+type used (`Stack[Int]`, `Stack[String]`, ...) so a single stdlib definition
+serves every element type.
+
+## Stack (`stdlib/stack.aegis`)
+
+```aegis
+struct Stack[T] { mut items: List[T] }
+
+impl Stack[T] {
+    fn push(mut self, v: T) -> Empty
+    requires !self.is_empty()
+    fn pop(mut self) -> T
+    requires !self.is_empty()
+    fn peek(self) -> T
+    fn is_empty(self) -> Bool
+    fn len(self) -> Int
+}
+```
+
+`push`/`pop` are O(1) over the list-backed buffer (`pop` uses the native
+`List.pop()`). `peek` and `pop` are guarded by a `requires` contract, so a
+program that pops an empty stack aborts with the requires diagnostic at
+runtime.
+
+```aegis
+let s = Stack[Int] { items: [] }
+s.push(10)
+s.push(20)
+let top = s.pop()        // 20
+let n = s.len()          // 1
+
+let names = Stack[String] { items: [] }
+names.push("aegis")
+names.pop()              // "aegis"
+```
+
+## Set (`stdlib/set.aegis`)
+
+A `Map`-backed set of elements. `Map.remove` is a native builtin (see
+[String operations](string.md)), so `remove` on a missing key returns `false`
+rather than aborting. v1 `Map` keys support `Int`, `Bool`, and `String`, so
+`Set[T]` instantiates for those element types only.
+
+```aegis
+struct Set[T] { mut data: Map[T, Int] }
+
+impl Set[T] {
+    fn add(mut self, v: T) -> Empty
+    fn remove(mut self, v: T) -> Bool  // false if absent
+    fn contains(self, v: T) -> Bool
+    fn is_empty(self) -> Bool
+    fn len(self) -> Int
+}
+```
+
+```aegis
+let s = Set[Int] { data: {} }
+s.add(10)
+s.add(10)          // no-op, still length 1
+s.contains(10)     // true
+```
+
+## Queue (`stdlib/queue.aegis`)
+
+A FIFO queue backed by a grow-only `List` with a `head` index. `pop`/`peek`
+are guarded by `requires !self.is_empty()`.
+
+```aegis
+struct Queue[T] { mut items: List[T], mut head: Int, mut len: Int }
+
+impl Queue[T] {
+    fn push(mut self, v: T) -> Empty
+    requires !self.is_empty()
+    fn pop(mut self) -> T
+    requires !self.is_empty()
+    fn peek(self) -> T
+    fn is_empty(self) -> Bool
+    fn len(self) -> Int
+}
+```
+
+```aegis
+let q = Queue[Int] { items: [], head: 0, len: 0 }
+q.push(5)
+q.push(6)
+q.pop()            // 5 (FIFO order)
+```
+
+## Deque (`stdlib/deque.aegis`)
+
+A double-ended queue implemented as two grow-only `List` stacks: `front` holds
+its elements reversed (live element at the end) and `back` holds them in order.
+`push`/`pop` at either end are amortized O(1) — when one side empties, the other
+is reversed into it (`List.reverse()` is a native builtin). `peek` never mutates:
+it reads the far element of whichever side is populated. All four end operations
+are guarded by `requires !self.is_empty()`.
+
+```aegis
+struct Deque[T] { mut front: List[T], mut back: List[T] }
+
+impl Deque[T] {
+    fn push_front(mut self, v: T) -> Empty
+    fn push_back(mut self, v: T) -> Empty
+    requires !self.is_empty()
+    fn pop_front(mut self) -> T
+    requires !self.is_empty()
+    fn pop_back(mut self) -> T
+    requires !self.is_empty()
+    fn peek_front(self) -> T
+    requires !self.is_empty()
+    fn peek_back(self) -> T
+    fn is_empty(self) -> Bool
+    fn len(self) -> Int
+}
+```
+
+```aegis
+let d = Deque[Int] { front: [], back: [] }
+d.push_back(2)
+d.push_front(1)
+d.peek_front()     // 1
+d.peek_back()      // 2
+d.pop_front()      // 1
+d.pop_back()       // 2
+```
+
+## Map enumeration (`keys` / `values` / `get_or`)
+
+The native `Map[K, V]` gained (M5) a non-aborting lookup and entry
+enumeration, so maps can be traversed without knowing the keys in advance:
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `get_or(k, default)` | `V` | the value, or `default` when `k` is absent (unlike `m[k]`, which aborts) |
+| `keys()` | `List[K]` | fresh list of the live keys (hash order) |
+| `values()` | `List[V]` | fresh list of the live values, matching `keys()` order |
+
+```aegis
+let mut m = {"a": 1, "b": 2, "c": 3}
+let ks = m.keys()
+let vs = m.values()
+let mut total = 0
+loop v in vs {
+    total = total + v
+}
+let hit = m.get_or("a", 0)      // 1
+let miss = m.get_or("z", -1)    // -1
+```
+
+`keys()` / `values()` allocate, so (like other list-valued results) bind the
+result to a name before calling further methods on it.
+
+## Generic impls
+
+The `impl Stack[T]` blocks above are templates: the compiler expands one
+concrete impl per used instantiation (`Stack[Int]`, `Stack[String]`, ...),
+substituting the struct's type parameters in the method signatures and bodies.
+The type arguments in the impl must be the struct's own parameter names
+(`impl Stack[T]` for `struct Stack[T]`); an impl pinning concrete types
+(`impl Container[Int]`) remains a hand-written impl on that one instantiation.
+An arity mismatch (`impl Stack[Int, String]`) is a compile error.
+
+## Roadmap
+
+The M7 continuation still calls for JSON pretty-printing and a richer L6 string
+formatter. Struct-keyed maps are deliberately out of scope: structs are
+mutable, so a mutated key would invalidate its hash slot — encode composite
+keys as a `String` instead. See [Roadmap](../roadmap.md).
+in the repo root.
+
+# stdlib/json
+
+# JSON
+
+`stdlib/json.aegis` is a self-contained RFC 8259 JSON implementation written
+in Aegis on top of compiler builtins (no C). It features a recursive-descent
+parser with precise error messages, a compact serializer, and typed accessors
+that return `Option`/`Result` instead of aborting.
+
+A parsed document is a `Json` enum value:
+
+```aegis
+enum Json {
+    Null,
+    Bool(Bool),
+    Num(Float),
+    Str(String),
+    Arr(List[Json]),
+    Obj(Map[String, Json]),
+}
+```
+
+`Null`, `Bool`, `Num`, `Str` are scalars; `Arr`/`Obj` carry container payloads.
+Because L7b container slots may hold enum values (heap-boxed), a `List[Json]`
+or `Map[String, Json]` can store *any* JSON value, including nested arrays and
+objects.
+
+## Parsing
+
+`JsonParser` is stateless; construct one and call `parse`:
+
+```aegis
+let jp = JsonParser {}
+match jp.parse(text) {
+    ok(j)  => { /* use j */ }
+    err(m) => { println(m) }
+}
+```
+
+`parse` returns `Result[Json, Str]`. The parser:
+
+- skips whitespace between tokens;
+- decodes the literal escapes `\" \\ \/ \n \t \r` plus `\uXXXX` for those same
+  code points (`\u0022 \u005c \u002f \u000a \u0009 \u000d`) and `\u0000`;
+- rejects anything else: a `\uXXXX` for an unsupported code point, an unknown
+  escape (`\b`, `\f` ...), a leading zero, a mangled number, a trailing
+  non-whitespace character, or a structural mistake — each with a message that
+  names the offending construct.
+
+```aegis
+let jp = JsonParser {}
+let r = jp.parse("{\"a\":[1,2.5,null],\"b\":\"hi\\nthere\"}")
+```
+
+## Inspection
+
+`type_of(j)` names the variant (`"null"`, `"bool"`, `"num"`, `"str"`, `"arr"`,
+`"obj"`). The typed accessors return `Option` and yield `none` on a variant
+mismatch instead of aborting:
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `is_null(j)` | `Bool` | true for `Json::Null` |
+| `as_bool(j)` | `Option[Bool]` | |
+| `as_float(j)` | `Option[Float]` | |
+| `as_int(j)` | `Option[Int]` | whole `Num`s only (`f == f.floor()`) |
+| `as_str(j)` | `Option[String]` | decoded string value |
+| `as_arr(j)` | `Option[List[Json]]` | |
+| `as_obj(j)` | `Option[Map[String, Json]]` | |
+| `get(j, key)` | `Option[Json]` | `Obj` member by key (no abort on missing) |
+| `at(j, i)` | `Option[Json]` | `Arr` element by index (bounds-checked) |
+
+```aegis
+match jp.as_int(item) {
+    some(n) => { total = total + n }
+    none    => { /* not a whole number */ }
+}
+let name = jp.get(person, "name")
+```
+
+## Serialization
+
+`to_string(j)` produces compact JSON (`{"a":[1,2],"b":null}` — no whitespace).
+`quote(s)` renders a `String` as a `"..."` literal with `\"`, `\\`, `\n`,
+`\t`, `\r` escapes, so object keys and string values round-trip. `Num` values
+are written with `str(f)`.
+
+```aegis
+let s = jp.to_string(doc)     // "{\"y\":true,\"z\":null,\"s\":\"hi\n\"}"
+```
+
+## Round-trip
+
+The self-test suite exercises parse/stringify round-trips, error paths, and
+container typed accessors. Because a `Map` iterates in hash order, only
+*same-key-set* round-trips are asserted to be deterministic.
+
+## Roadmap
+
+The parser intentionally targets the RFC 8259 core. The roadmap calls for
+indentation control in `to_string`, full `\uXXXX` code point decoding, and a
+`parse_file` convenience over the IO stdlib. See [Roadmap](../roadmap.md).
+
+# stdlib/csv-table
+
+# CSV & tables
+
+`stdlib/csv.aegis` and `stdlib/table.aegis` are self-contained text-formatting
+modules written in Aegis on top of compiler builtins (no C). Both compile
+standalone and are covered by their self-test suites.
+
+## CSV (`stdlib/csv.aegis`)
+
+`Csv` encodes and decodes an RFC 4180 subset. A table is a `List[List[Str]]` —
+rows of fields — which needs no new runtime support (`List` of `List` of `Str`
+is an ordinary nested container).
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `parse(text)` | `List[List[Str]]` | split into records and fields |
+| `encode(rows)` | `Str` | serialize, quoting only fields that need it |
+
+```aegis
+let csv = Csv {}
+let rows = csv.parse("name,note\nalice,\"x, y\"\n")
+let back = csv.encode(rows)   // "name,note\nalice,\"x, y\"\n"
+```
+
+`parse` follows the small RFC:
+
+- a field may be double-quoted to embed a comma, a quote, or a newline;
+- a doubled quote (`""`) decodes to a literal `"`;
+- records end at `\n` or `\r\n` (a lone `\r` is dropped);
+- a trailing newline does not create an empty final record, and blank input
+  yields no rows.
+
+`encode` quotes a field only when it contains a comma, quote, CR, or LF, and
+doubles any embedded quote. For canonical input, `encode(parse(t)) == t`.
+
+## Tables (`stdlib/table.aegis`)
+
+`Table.render(headers, rows)` turns a header `List[Str]` and a `List[List[Str]]`
+into a fixed-width text table: each column is padded to the widest of its header
+and cells, the header is underlined with a dash rule, and short rows pad their
+missing trailing cells.
+
+```aegis
+let t = Table {}
+let table = t.render(["Name", "Age"], [["Al", "7"], ["Bea", "12"]])
+// Name | Age
+// -----+----
+// Al   | 7
+// Bea  | 12
+```
+
+Padding is built from `String.repeat` (`s + " ".repeat(width - s.length())`),
+so the module stays standalone and does not depend on `stdlib/mathstr.aegis`.
+
+## Round-trip
+
+The self-test suites exercise quoted fields, CRLF and LF records, the
+trailing-newline rule, blank input, encode round-trips, and table alignment.
+
+
+# stdlib/io
+
+# File IO & stdin
+
+These are value-level compiler builtins (like `print` / `argc`). Failures are values: `read_file`, `read_line`, and
+`list_dir` return `Result[String, String]` / `Result[List[String], String]`, and
+`write_file` returns `Result[Int, String]` (bytes written). Files are
+read/written as raw bytes; `read_line` is the only operation that strips a
+newline.
+
+| Function | Returns | Notes |
+| --- | --- | --- |
+| `read_file(path)` | `Result[Str, Str]` | whole file; `err` when it cannot be opened/read |
+| `write_file(path, content)` | `Result[Int, Str]` | bytes written; `err` on failure |
+| `file_exists(path)` | `Bool` | |
+| `read_line()` | `Result[Str, Str]` | one line from stdin, trailing newline stripped; `err` at EOF |
+| `list_dir(path)` | `Result[List[Str], Str]` | entry names of a directory (unsorted, `.`/`..` omitted); `err` when it cannot be opened |
+
+```aegis
+match read_file("notes.txt") {
+    ok(text) => { println(text) }
+    err(why) => { println("read failed: " + why) }
+}
+match write_file("out.txt", "hello\n") {
+    ok(n) => { println(str(n) + " bytes") }
+    err(why) => { println(why) }
+}
+match list_dir("src") {
+    ok(entries) => {
+        let mut i = 0
+        while i < entries.length() {
+            println(entries[i])
+            i = i + 1
+        }
+    }
+    err(why) => { println(why) }
+}
+```
+
+Paths are ordinary `String`s; the separator is not abstracted
+(`"C:/tmp/a.txt"` and `"dir/file"` both work). The argument type is checked:
+`read_file(42)` fails with `read_file path must be a String, got Int`, and
+`list_dir(42)` fails with `list_dir path must be a String, got Int`.
+
+`list_dir` returns leaf entry names (not full paths) and does not distinguish
+files from subdirectories; inspecting an entry further is a job for
+`file_exists` or a subsequent `list_dir`. It is implemented per-platform in the
+runtime (`FindFirstFileA` on Windows, `readdir` elsewhere).
+
+A `match` on a `Result` binds its payload by reference, so a bound `String`
+supports the full string surface. This needed a codegen fix (a match-bound
+payload was treated as an lvalue slot); it is exercised by
+The test suite verifies these behaviors against scratch files and directories,
+including the `err` path on a missing file.
+
+The stdlib is not auto-loaded: these IO builtins need no `import`, but
+seed-module methods (for example `String.replace`) require
+`stdlib/mathstr.aegis` among the compiler inputs.
+
+
+# stdlib/time-rand
+
+# Time & randomness
+
+Value-level compiler builtins (like `print` / `argc`).
+
+| Function | Returns | Notes |
+| --- | --- | --- |
+| `now_ms()` | `Int` | monotonic milliseconds since an arbitrary epoch (for elapsed time, not wall-clock dates) |
+| `rand_seed(n)` | `Empty` | seed the PRNG; `0` restores the built-in default seed |
+| `rand_int(lo, hi)` | `Int` | uniform in the half-open range `[lo, hi)`; returns `lo` when `hi <= lo` |
+| `rand_float()` | `Float` | uniform in `[0.0, 1.0)` |
+
+```aegis
+rand_seed(42)
+let die = rand_int(1, 7)          // 1..=6
+let p = rand_float()              // 0.0 <= p < 1.0
+
+let t0 = now_ms()
+// ... work ...
+let elapsed = now_ms() - t0
+```
+
+The generator is a deterministic `xorshift64*`: seeding with the same value
+reproduces the same sequence, which is what makes tests (and save/replay
+scenarios) stable. `now_ms` reuses the same monotonic clock the event-timer
+queue already uses, so it never jumps backwards on a clock adjustment.
+
+Argument types are checked: `rand_int("a", 3)` fails with
+`rand_int bounds must be Ints, got Str`. Verified by
+The test suite verifies reproducibility, range invariants, and clock
+monotonicity.
+
+
+# stdlib/hashing
+
+# Hashing
+
+`hash(x)` is a value-level compiler builtin (like `now_ms` / `argc`). It maps a
+scalar or string to a deterministic, non-negative `Int` using FNV-1a (64-bit) —
+the same family the `Map` uses for its string keys.
+
+| Function | Returns | Notes |
+| --- | --- | --- |
+| `hash(s)` | `Int` | FNV-1a over the string's bytes; `hash("")` is defined |
+| `hash(n)` | `Int` | FNV-1a over the 8 little-endian bytes of the `Int` |
+| `hash(b)` | `Int` | `hash(true)` / `hash(false)`, i.e. `hash` of `1` / `0` |
+
+```aegis
+let a = hash("hello")     // deterministic across runs
+let b = hash(42)
+let c = hash(true)
+```
+
+Properties:
+
+- **Deterministic.** The same input always yields the same value, across runs
+  and machines — no per-process seed.
+- **Non-negative.** The 64-bit result is masked to 63 bits, so it is safe to
+  use directly as `hash(x) % n` without sign pitfalls.
+- **Not cryptographic.** This is a fast content hash for buckets, tables and
+  fingerprints, not a password or integrity primitive.
+
+Verified by the `hash` checks in the builtin test suites.
+
+
+# stdlib/net
+
+# Net
+
+Minimal blocking TCP for backend servers, over the runtime's socket helpers
+(Windows Winsock / POSIX). Connections and listeners are
+opaque `Handle[T]` values; user code only ever passes them back to the `Net`
+methods.
+
+Aegis has no free functions, so TCP hangs off one instance:
+
+```aegis
+let net = Net {}
+if net.init() != 0 {
+    println("winsock init failed")
+}
+let l = net.listen("127.0.0.1", 8080)
+if l == null { /* bind/listen failed */ }
+let conn = net.accept(l)   // blocking accept
+```
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `init()` | `Int` | WSACleanup-safe WSAStartup once; 0 on success. Call before any other method. |
+| `listen(host, port)` | `Handle[TcpListener]` | bind + listen; `null` on failure; empty host binds `INADDR_ANY` |
+| `port(listener)` | `Int` | the actual bound port (needed after port 0) |
+| `accept(listener)` | `Handle[TcpConn]` | blocking; `null` when the listener died |
+| `connect(host, port)` | `Handle[TcpConn]` | dial out; `null` on failure |
+| `recv(conn, max)` | `Str` | up to `max` bytes; `""` means EOF or error |
+| `send(conn, data)` | `Int` | bytes written; short count or `-1` means the peer went away |
+| `close_conn(conn)` | | release a connection handle |
+| `close_listener(listener)` | | release a listener handle |
+
+## Hostnames and DNS
+
+`host` is either a numeric IPv4 or a hostname. Resolution inside the runtime
+tries `inet_pton` first (no resolver round trip for `127.0.0.1`) and falls back
+to `getaddrinfo(AF_INET, SOCK_STREAM)`, so `net.connect("api.example.com", 80)`
+works like `net.connect("127.0.0.1", 80)`. IPv6 is not handled yet; the
+resolver asks for `AF_INET` only.
+
+## Port 0
+
+`listen(host, 0)` asks the OS for an ephemeral port; read it back with
+`port(listener)` before blocking in `accept`. This is what makes a one-process
+smoke test deterministic: the caller can print the real port for a client to
+dial.
+
+## Blocking and ownership
+
+Everything is synchronous - one connection at a time, no threads. Handles are
+opaque: they must not be stored in containers crossing the FFI boundary, and are
+closed explicitly. `recv` returning `""` is the caller's stop signal (EOF and
+error share the channel). The externs are declared in `stdlib/net.aegis`; the module compiles standalone with
+compiler builtins only.
+
+# stdlib/http
+
+# HTTP
+
+A minimal HTTP/1.1 server built on `stdlib/net.aegis`. `serve` blocks in an
+accept loop and dispatches each connection to a `fn(Request) -> Response`
+handler, so routing is ordinary Aegis code (match on `req.path`).
+
+```aegis
+let http = Http {}
+fn handler(self) -> fn(Request) -> Response {
+    return |req: Request| -> Response {
+        let h = Http {}
+        if req.path == "/" {
+            return h.respond_ok("webapp ok")
+        }
+        return h.respond_404()
+    }
+}
+let rc = http.serve(8080, handler())
+```
+
+| Type | Fields |
+| --- | --- |
+| `Request` | `method: Str`, `path: Str`, `headers: Map[Str, Str]`, `body: Str` |
+| `Response` | `status: Int`, `headers: Map[Str, Str]`, `body: Str` |
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `respond_ok(body)` | `Response` | status 200, empty headers |
+| `respond_404()` | `Response` | status 404, `"not found"` |
+| `respond_400()` | `Response` | status 400, `"bad request"` |
+| `with_header(r, name, value)` | `Response` | copy `r` with one more header |
+| `respond_json(body)` | `Response` | status 200 with `Content-Type: application/json; charset=utf-8` |
+| `serve_on(net, listener, handler)` | `Int` | answer exactly one connection on a pre-bound listener, then release it |
+| `serve(port, handler)` | `Int` | listen on `127.0.0.1` and answer connections until the listener dies |
+
+`serve_on` splits out the bind so the caller can pick an ephemeral port, read it
+back with `net.port(l)`, and publish it before blocking in `accept` - the shape
+The router is exercised for deterministic behavior.
+
+## Response headers
+
+`response_text` serializes the custom `headers` map first (hash-bucket order),
+then emits `Content-Type: text/plain; charset=utf-8` only when no
+`content-type` key is present (matched case-insensitively), and finally forces
+`Content-Length` (computed from the body) and `Connection: close`. Header names
+keep their case; lookups on `Request.headers` are case-sensitive, and a
+duplicate request header collapses to the last value. Custom
+`Content-Length`/`Connection` entries cannot be overridden.
+
+## Request parsing
+
+`parse_request` splits the raw bytes on the first blank line
+(`"\r\n\r\n"`), parses the header lines into `Request.headers` (a
+`Map[Str, Str]`), and sets `path` to include the query string (split on `?`
+yourself). Reads stop at the header terminator or the 64 KiB cap
+(`read_request`), which covers GET and POST-with-body; there is no chunked
+encoding or keep-alive, and every response sets `Connection: close`. A
+malformed request is reported as a `Request` whose `method` is `""` (check with
+`is_valid`) - v1 cannot carry a struct inside `Option[...]`, so the empty
+sentinel is the error channel rather than `none`.
+
+## Constraints
+
+Single-threaded: one connection is handled to completion before the next
+`accept`. `serve` binds `127.0.0.1` (use `net.listen` + `serve_on` for other
+bind addresses). The stdlib is not auto-loaded: splice `http.aegis` (and
+`net.aegis`) into the compilation ahead of your program.
+
+# quickstart
+
+# Quickstart
+
+Aegis ships as a self-contained compiler toolchain. You install a prebuilt
+release, point it at a C compiler for the final link step, and compile `.aegis`
+programs to native executables.
+
+## Install
+
+**Windows (x64):**
+
+```powershell
+irm https://raw.githubusercontent.com/Sockney89/aegis-dist/main/install.ps1 | iex
+```
+
+**Linux (x86_64):**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Sockney89/aegis-dist/main/install.sh | sh
+```
+
+Both installers download the latest release, verify its SHA-256 checksum, and
+install to a per-user directory (`%LOCALAPPDATA%\Aegis` on Windows, `~/.aegis`
+on Linux), adding the `bin/` to your `PATH`. Pin a version with `-Version 0.1.0`
+(PowerShell) or `--version 0.1.0` (shell). On Windows you can also use Scoop:
+
+```
+scoop bucket add aegis https://github.com/Sockney89/aegis-dist
+scoop install aegis
+```
+
+## Link step: a C compiler
+
+Producing a standalone executable (`--emit-exe`) drives a `clang`-compatible C
+compiler at the final link to build the runtime. Point the compiler at it once:
+
+```powershell
+[Environment]::SetEnvironmentVariable('AEGIS_CC','C:\LLVM\bin\clang.exe','User')
+```
+
+```sh
+export AEGIS_CC=/usr/bin/clang
+```
+
+Everything else — emitting objects, printing IR, formatting source — needs no C
+compiler. The Aegis runtime itself is precompiled per target and shipped in
+`runtime/prebuilt/`, so you never build it.
+
+## Run your first program
+
+```sh
+cat > hello.aegis <<'EOF'
+struct Greeter { }
+impl Greeter {
+    fn greet(self) {
+        println("hello, aegis")
+    }
+}
+EOF
+
+compiler hello.aegis --main Greeter::greet --emit-exe hello
+./hello
+# -> hello, aegis
+```
+
+`--emit-exe` produces a standalone executable (`.exe` suffix is appended on
+Windows). Without an explicit filename the executable is written next to the
+first input file under that file's basename; pass a path (`--emit-exe app.exe`)
+to control it. `--emit-obj` emits an object file, `--ir` prints the LLVM IR, and
+`--fmt` prints the canonical formatted source.
+
+The entry point defaults to the method named `main` (an `impl X { fn main(self) }`)
+and can be overridden with `--main X::y`. `main` may return `Int` (the exit
+code), nothing (exit 0), or `Result[Empty, E]`: `return ok` exits 0, and
+`return err(n)` exits with `n` when the error payload is an `Int` (any other
+payload exits 1), giving CLIs an explicit non-zero exit-code path with `?`
+propagation. There is no `args: List[String]` parameter — programs read
+`argc()` and `arg(i)`, where `arg(0)` is the program path and real arguments
+start at `arg(1)` (see [wordfreq CLI](examples.md) for a full argv-driven
+program).
+
+## Driving the compiler from an agent (MCP)
+
+`aegis-mcp` exposes the same streaming pipeline as MCP tools and resources, so
+an agent host (opencode and other MCP clients) can compile without a shell:
+open a session, stream the source item by item, then link and run. See
+[the MCP reference](stdlib/index.md) for the tool list and the
+`create_session` → `stream_source` → `eos` → `link_object` → `run_object` loop.
+
+## Standard library
+
+The "stdlib" has two layers:
+
+1. **Compiler builtins** - methods the compiler lowers directly to LLVM
+   (`String.length`, `String.split/join/trim`, `String.to_upper/to_lower/
+   repeat`, `List.map/filter/fold/sort/append/pop/length/contains/index_of/
+   reverse`, `Map.length/contains/insert`,
+   `Float.floor/sqrt`). See [stdlib](stdlib/index.md).
+2. **Aegis seed modules** - ordinary `struct`/`impl` code in `stdlib/`
+   (`mathstr.aegis`: `Int.min/max/abs`, `starts_with/ends_with/contains`,
+   `String.to_int`; `stack.aegis`: `Stack.push/pop/peek/len`).
+
+Seed modules are **not auto-loaded**: to use their methods, list the module
+files among the compiler inputs, e.g.
+`compiler stdlib/mathstr.aegis app.aegis --emit-exe app.exe`. Compiler
+builtins (layer 1) need no file — they are always in scope.
+
+
+# examples
+
+# Real project: wordfreq CLI
+
+The **wordfreq** project is a complete, two-module console application —
+the first "real project" built start-to-finish with the Aegis compiler. It
+exercises the same surface a normal CLI needs: cross-module visibility, a
+`Map[String, Int]` accumulator, `List` iteration, `argc()`/`arg(i)` argv
+parsing, and output formatting by string concatenation (`str(v)` + `+`).
+
+The app was written to run on the compiler as-is. Along the way it surfaced
+two real compiler bugs that are now fixed:
+
+- an empty-map literal in a typed `let` (`let mut taken: Map[String, Bool] = {}`)
+  was silently typed `Map[Any, Any]`, so later `counts[w]` reads type-checked
+  against `Any`; the annotated type is now honored,
+- nested short-circuit conditions (`a || (b && c)`) mis-lowered the join phi
+  so the emitted IR failed LLVM verification; the RHS result is now attributed
+  to the block it is actually produced in.
+
+## Layout
+
+| File                | Role                                                        |
+|---------------------|-------------------------------------------------------------|
+| `lib.aegis`         | `@module wordfreq`; `pub struct Frequencies` + `add` + `order_by_count` |
+| `main.aegis`        | `@module wordfreq_main`; `import @wordfreq`; `App::main` entry (default) |
+| `wordfreq_ref.c`    | a C reference with the same algorithm, for size/speed comparison |
+
+## Build
+
+One compiler command for the whole project, no hand-written C:
+
+```text
+compiler main.aegis lib.aegis --emit-exe wordfreq.exe
+```
+
+The entry point is `App::main`, found automatically as the default entry.
+Running it:
+
+```text
+> wordfreq.exe the quick brown fox the lazy dog the
+the: 3
+brown: 1
+dog: 1
+fox: 1
+lazy: 1
+quick: 1
+----
+tokens=8 unique=6
+```
+
+## Measurements (Windows, x86_64-pc-windows-msvc)
+
+A whole-project build (both files, codegen + link):
+
+```text
+full project build (--emit-exe):   ~1.2 s
+aegis object file:                 3,564 B   (text 1,434 + data 143)
+```
+
+Executable sizes (static CRT, runtime always linked):
+
+```text
+wordfreq.app (aegis)          172,544 B
+wordfreq_ref.c, clang -O0     148,480 B
+wordfreq_ref.c, clang -O2     150,016 B
+```
+
+The Aegis exe is dominated by a constant floor shared with every `--emit-exe`
+program — hello/fizzbuzz/wordcount are all 171,008 B — from the statically
+linked CRT plus the full runtime compiled at `-O0` and linked without section
+GC. It is currently ~23 KB over the C reference and ~22 KB under the constant
+floor plus app code; closing the gap means opting the runtime compile and the
+object emit into real optimization (an ongoing area — see the roadmap).
+
+Runtime performance:
+
+```text
+wordfreq, 1,000-token argv        aegis 13.1 ms | C -O0 12.4 ms | C -O2 12.5 ms
+compute loop, 10 M iterations     aegis 36.2 ms | C -O0 35.1 ms | C -O2 12.3 ms
+```
+
+The CLI is process-startup bound (all three within noise). The compute loop is
+the interesting number: emitted Aegis code runs at clang `-O0` speed — LLVM's
+instruction selection already matches the baseline — and is ~3× off `-O2`,
+which is exactly the optimizer gap the pass pipeline will close. The reference
+is kept in the tree so the numbers can be re-derived.
+
+## Notes on working around today's limits
+
+The v1 closure rule (scalar captures only) means a `sort` comparator cannot
+read the counts map, and index assignment targets are not yet supported, so
+`order_by_count` is an explicit selection-sort over first-seen words
+(`taken: Map[String, Bool]` guards extraction). The app reads via
+`self.counts[w]` and appends into fresh lists — no index writes required.
+
+# Flagship: the dungeon adventure
+
+`examples/dungeon.aegis` is the flagship stress test for the standard library:
+a deterministic, argv-driven text adventure. Compiled alongside the seed
+modules (`stdlib/mathstr.aegis`, `stdlib/stack.aegis`, `stdlib/set.aegis`), it
+runs a fixed command script:
+
+```text
+compiler stdlib/mathstr.aegis stdlib/stack.aegis stdlib/set.aegis \
+         examples/dungeon.aegis --main Dungeon::run --emit-exe dungeon.exe
+dungeon.exe "go north" "go north" "take" "go south" "go east" "attack" "go north" "open" "look"
+```
+
+A single run exercises a native **state machine** (the treasure gate,
+`Gate @ GateState::Locked` → `Unlocked`), **contracts**
+(`requires self.room == 3` on `attack`), `Map`/`List` builtins, the
+`Stack`/`Set` seed collections (the action history is a `Stack[String]`, visited
+rooms a `Set[Int]`), **string parsing** (`trim` / `to_lower` / `split`), seeded
+**randomness** (combat), and **file IO** (the run summary is written and read
+back). The transcript ends `gold=100 hp=26 rooms=5 steps=9`.
+
+Writing it pinned three language limits worth knowing:
+
+- **`else if` was missing** at the time — command dispatch is a `match` on the
+  verb string (this has since been implemented),
+- struct literals must be single-line (statements are newline-terminated);
+  nested literals are fine as long as the whole literal stays on one line.
+
+# roadmap
+
+# Roadmap
+
+This page summarizes the language feature axis and current status.
+
+## L1 - Observable programs (done)
+
+`print`/`println`, `str(...)`, String `+` concatenation and `{expr}` interpolation,
+`argc()`/`arg(i)`, and `--emit-exe` (one command to a native executable).
+
+## L2 - Completed core (done)
+
+`if`/`else if`, `while`, `loop` (bare / range / list / string), `match`, sum-type
+destructuring (`ok`/`err`/`some`/`none`), `?` propagation, short-circuit `&&`/`||`,
+compound assignment, `const` globals.
+
+## L3 - Abstraction & stdlib (done)
+
+- **L3a** closures + higher-order list methods (`map`/`filter`/`fold`/`sort`).
+- **L3b** sealed builtin `impl Int`/`Float`/`String`; `floor`/`sqrt`; math seed.
+- **L3c** allocation-returning string builtins (`trim`/`split`/`join`), `Stack`.
+- **L3d** `Set` / `Queue`; native `Map.remove`.
+- **L3e** traits (static dispatch), trait objects (dynamic dispatch), and
+  contract-strength subsumption.
+- **L3f** `List.contains/index_of/reverse`, `String.to_upper/to_lower/repeat`.
+- **L3g** string interpolation with str()-able holes.
+
+## L4 - Reuse, isolation & escape hatches (done)
+
+- **L4a** user generics (structs, methods, traits, bounds) with monomorphization.
+- **L4b** real modules: multi-file compilation, `pub` visibility enforcement, and
+  archive linking (`--emit-archive`).
+- **L4c** FFI: `extern "C"` declarations.
+
+## L5 - Scale (done)
+
+Timers (`emit ... after`), actors (`spawn`/`send`/`on`), and optional static contract
+verification (`--verify`).
+
+## M1-M7 - Standard library (in progress)
+
+- **M1-M6 (done):** numeric conversions + math/transcendentals; string deepening;
+  file IO + stdin; time + randomness; map enumeration + `List.slice`; and the
+  dungeon-adventure flagship.
+- **M7 (in progress):** data packages. Done: JSON parse/serialize (M6/L7b),
+  `Deque` (two-stack double-ended queue), `List.dedupe`, the `hash(x)` FNV-1a
+  builtin (Int/Bool/String -> non-negative Int), map iteration
+  (`loop (k, v) in m`, L8), CSV + fixed-width tables
+  (`stdlib/csv.aegis`, `stdlib/table.aegis`), and directory listing
+  (`list_dir(path)` -> `Result[List[Str], Str]`). Struct-keyed maps are
+  deliberately out of scope (mutable keys would invalidate their hash slots;
+  encode composite keys as a `String` instead). Planned: JSON pretty-printing.
+
+## L6-L9 - Surface & depth
+
+- **L6** ergonomics & formatting: **multi-line struct/collection literals (done, L6a)**,
+  **format specifiers `"{x:.3f}"` + `Float.format`/`Int.pad` (done)**, **`main -> Result[Empty, E]`
+  with explicit exit codes (done)**, **`**` power sugar (done, desugars to `.pow()`)**.
+- **L7** sum types & pattern depth: **user-defined enums with payloads + exhaustive
+  match (done)**, **guards / range patterns / `|` alternatives with bindings
+  (done)**, **nested patterns — a variant payload that is itself an enum matches
+  directly, e.g. `Outer::A(Inner::B(x))`, with one-level exhaustive inner
+  coverage (done)**.
+- **L8** iteration & capture: **`loop (k, v) in map` (done, L8a)**, **`enumerate()` /
+  `zip` pair views over lists (done, L8b)**, **container-capturing closures (done,
+  L8c)**, **nested closures (done, L8d)**, **user iteration protocol (done, L8e)** —
+  any struct with `next(mut self) -> Option[T]` is loopable.
+- **L9** numeric widths & casts: `i8`..`u64` / `f32` with explicit conversions.
+
+## I-track - Interop & Foreign Code (traction priority)
+
+First-class C interop so Aegis reaches real libraries (SQLite as the proving
+ground) and, via C ABI, the Rust/Zig/C++/Go ecosystems. `extern "C"` now spans
+the C scalar widths, `Handle`, `Str`/`char*`, out-params, callbacks, `extern
+struct`, and struct returns by value, and a single `--emit-exe` command links
+sources with C/objects/archives.
+
+- **I1** sized integer widths (pulls L9 forward).
+- **I2** opaque `Handle` type (`sqlite3*`, `FILE*`) — done: `Handle[Tag]` is one
+  pointer wide and never dereferenceable, `null` is the null pointer, and
+  `==`/`!=` compare identity.
+- **I3** out-params / address-of in extern signatures (`sqlite3_open(path, out db)`)
+  — done: `out name: T` is `T*`, the call passes an address the callee writes and
+  binds as a fresh local.
+- **I4** automatic `Str` ↔ `char*` marshaling (`aegis_str_cstr`/`aegis_str_from_cstr`)
+  — done: `-> Str` extern results and out-Str readbacks are copied into owned
+  Aegis Strings (NULL C strings read back as `""`), so transient C buffers stay
+  valid as locals.
+- **I5** function-pointer params: Aegis closures as C callbacks and UDFs — done:
+  a cb-signature param `fn(...) -> R` marshals each closure literal to a real
+  C-ABI thunk (`aegis.cb.N`) whose captured env is looked up in a program-lifetime
+  registry, so captures outlive the C call. Signatures are C-scalar/Str-only.
+- **I6** struct ABI (`#[repr(C)]` equivalent) for system headers — done:
+  `extern struct Name { f: T, ... }` declares a C-layout struct (C scalars /
+  `Handle[T]` / nested extern structs only) that crosses the extern boundary by
+  value as a param, by pointer through `out name: T`, and by value as a return
+  (I9).
+- **I7** single-command FFI linking — done: `--emit-exe` mixes `.aegis` sources with
+  object/archive/C inputs and `-l`/`-L` (with `AEGIS_LIBRARY_PATH` as extra `-L`).
+- **I8** Aegis as a callable C library — done: `export fn` entry points over scalar
+  params, `--emit-lib` (static `.lib`/`.a`) and `--emit-dylib` (`.dll` + import lib on
+  Windows, `.so` on Linux, with the runtime linked in).
+- **I9** C-struct returns by value — done: an `extern "C"` fn may return an `extern
+  struct` (registers when it fits, else the hidden struct-return pointer), closing the
+  I6 deferral; a non-extern Aegis struct return is still rejected.
+- Gate: **SQLite milestone** — open a DB, create a table, insert and read rows back
+  from Aegis in one command with no hand-written C.
+
+Rust interop rides the I-track: `#[no_mangle] extern "C"` + `#[repr(C)]` already
+speak C ABI, so the extra work is per-crate shims (`CString`/slice conversion,
+`panic=abort` at the boundary) and a `staticlib` link recipe — no new compiler
+machinery.
+
+## S-track - toolchain
+
+Phases 0-4 and S1-S6 are done (formatter, C-WAL, wire schema, materialization, live
+symbols, daemon + WS); `aegis-mcp`, `aegis-ws` and packaging sit on top. **S8**
+(session continuity across `eos`) and **S10** (project reopen from the C-WAL) are
+done. **S9** (single-command FFI linking) shipped under the I-track as **I7**, and
+**I8** (`--emit-lib`/`--emit-dylib` for hosting) is now done too. S7
+(compiler-as-a-service) remains optional and undecided.
+
+## X-track - Cross compilation (done)
+
+Modeled on rustc: `--target <triple>` makes codegen emit target-specific objects
+(COFF/ELF per the effective target, CLI > `AEGIS_TARGET` > host), the runtime
+ships as **prebuilt per-target objects** so Aegis can be distributed without its
+source, and `--emit-exe` links through the host `clang` driver with
+`--target=` + `-fuse-ld=lld` so the target-appropriate linker is picked
+(`lld-link`/mingw/`ld.lld`; `AEGIS_CC` overrides). MCP sessions carry a target end
+to end. First pair: `x86_64-pc-windows-msvc` + `x86_64-unknown-linux-gnu`.
+
