@@ -69,3 +69,9 @@ Two language rules worth knowing when writing similar programs:
 - command dispatch is a `match` on the verb string,
 - struct literals must be single-line (statements are newline-terminated);
   nested literals are fine as long as the whole literal stays on one line.
+
+## SQLite FFI (example)
+
+See `examples/ffi` for a minimal SQLite FFI example using `extern "C"`,
+prepared statements, integer widths, and error handling. It includes a C helper
+and notes for Windows (`winsqlite3.dll`).

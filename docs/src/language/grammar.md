@@ -384,11 +384,11 @@ C-callable symbol with no mangling.
 ```
 extern "C" fn simple_multiply(a: Int, b: Int) -> Int
 
-export fn aegis_add(a: Int, b: Int) -> Int {
+export fn add(a: Int, b: Int) -> Int {
     return a + b
 }
 
-export fn aegis_scale(x: Int) -> Int {
+export fn scale(x: Int) -> Int {
     return simple_multiply(x, 2)
 }
 ```
@@ -416,7 +416,7 @@ must also link the Aegis runtime that ships with the toolchain.
 `--emit-dylib` links the runtime into the shared library itself and, on
 Windows, writes the matching import library next to it (`aegis.dll` →
 `aegis.lib`), so a host links against the `.lib` and loads the DLL. Neither
-mode invents a default `aegis_main`; pass `--main App::run` explicitly if the
+mode provides a default entry symbol; pass `--main App::run` explicitly if the
 host wants a library entry point.
 
 Both flags accept object/C inputs alongside `.aegis` sources (`-l`/`-L` apply

@@ -20,6 +20,7 @@
   - [JSON](stdlib/json.md)
   - [CSV & tables](stdlib/csv-table.md)
   - [File IO & stdin](stdlib/io.md)
+  - [OS & processes](stdlib/os.md)
   - [Time & randomness](stdlib/time-rand.md)
   - [Hashing](stdlib/hashing.md)
   - [Net](stdlib/net.md)

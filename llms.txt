@@ -32,6 +32,7 @@ aegis://llms-full.txt.
 - [stdlib/json.md](stdlib/json.md): JSON (RFC 8259): typed parse + serialize over the Json enum stdlib
 - [stdlib/csv-table.md](stdlib/csv-table.md): CSV encode/decode (RFC 4180 subset) and fixed-width table rendering
 - [stdlib/io.md](stdlib/io.md): File IO & stdin builtins: read_file/write_file/file_exists/read_line/list_dir
+- [stdlib/os.md](stdlib/os.md): OS seed module: env/cwd, filesystem (mkdir/rmdir/remove/rename/copy/stat), pid/time, exec & shell
 - [stdlib/time-rand.md](stdlib/time-rand.md): Time & randomness builtins: now_ms and a seeded PRNG
 - [stdlib/hashing.md](stdlib/hashing.md): Hashing builtin: hash(x) FNV-1a over Int/Bool/String
 - [stdlib/net.md](stdlib/net.md): Blocking TCP: init/listen/accept/connect/recv/send, hostname DNS resolution

@@ -131,3 +131,10 @@ character at a time.
 | `contains(k)` | - | `Bool` | |
 | `insert(k, v)` | `mut` map | `Int` | upserts, returns new length |
 | `remove(k)` | `mut` map | `Bool` | `true` if key was present, `false` if absent |
+## Interpolation notes and gotchas
+
+- **Braces**: Unescaped { starts a hole; literal { and } must be written as \{ and \}.
+- **String literals inside interpolation**: String literals are not supported inside interpolation expressions. Extract to a variable first.
+- **Holes must be str()-able**: Only Int, Float, Bool, String/Str. Containers like List/Map are rejected.
+- **Format specifiers**: See above; type must match (e.g. Float needs /g).
+- **Multiline expressions**: Keep interpolation expressions on a single line where possible; complex multiline boolean expressions may not parse in all positions.

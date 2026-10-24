@@ -109,3 +109,10 @@ Seed modules are **not auto-loaded**: to use their methods, list the module
 files among the compiler inputs, e.g.
 `compiler stdlib/mathstr.aegis app.aegis --emit-exe app.exe`. Compiler
 builtins (layer 1) need no file — they are always in scope.
+
+### MCP resources (corpus discovery)
+
+To read docs from the MCP server, initialize the server and call esources/list to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. egis://docs/...); do not guess generic URIs. Example:
+- Call esources/list to enumerate available resources
+- Use the exact URIs returned (e.g. egis://docs/stdlib/index, egis://docs/language/syntax) with esources/read`r
+
