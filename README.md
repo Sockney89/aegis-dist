@@ -103,6 +103,3 @@ project under `docs/`). Two AI-oriented corpora, `llms.txt` and
 - Released binaries: proprietary (`LicenseRef-Proprietary`); see the `LICENSE`
   and `NOTICE` files inside each release archive, including the third-party
   attribution for the statically linked LLVM and its runtimes.
-EOF
-path:
-D:\dev\opencode\aegis\dist-repo/README.md
