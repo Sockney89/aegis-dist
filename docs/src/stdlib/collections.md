@@ -155,6 +155,25 @@ let miss = m.get_or("z", -1)    // -1
 `keys()` / `values()` allocate, so (like other list-valued results) bind the
 result to a name before calling further methods on it.
 
+## Shared collections (threaded builds)
+
+`stdlib/shared.aegis` wraps `List[Int]` and `Map[Str, Int]` in a mutex for use
+with `--threads N`. Each collection owns a `Handle[Mutex]`; locking is manual
+(Aegis has no RAII), so every read/write must be bracketed by `lock`/`unlock`.
+
+```aegis
+struct SharedList { mut items: List[Int], mut lock: Handle[Mutex] }
+struct SharedMap  { mut items: Map[Str, Int], mut lock: Handle[Mutex] }
+```
+
+| Type | Methods |
+| --- | --- |
+| `SharedList` | `new()`, `push(v)`, `len()`, `free()` |
+| `SharedMap` | `new()`, `insert(k, v)`, `get_or(k, d)`, `free()` |
+
+In single-threaded builds the mutex is uncontended overhead; the wrappers are
+only useful when `--threads N` is passed.
+
 ## Generic impls
 
 The `impl Stack[T]` blocks above are templates: the compiler expands one

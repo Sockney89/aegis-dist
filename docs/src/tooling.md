@@ -73,6 +73,38 @@ pass; `link_object` produces an executable; `run_object` executes it. The corpus
 is served as `aegis://docs/<page>` and `aegis://stdlib/<module>`, plus
 `aegis://llms.txt` and `aegis://llms-full.txt` for a one-shot bootstrap.
 
+## Hot-swap (experimental)
+
+`Module` and `actor_hot_swap` provide *state migration*, not in-place code
+replacement: a new module is loaded, its migrate entry point runs on the
+actor's current state, and the module is then unloaded. Event handlers stay
+compiled into the host program, and `export fn` is scalar-only (no `Str`), so
+formatting logic cannot live in a swappable module. On Windows, build
+replacement modules under versioned filenames (`module_v2.dll`) because a
+loaded DLL cannot be overwritten.
+
+## Stripping symbols
+
+Pass `--strip` to `--emit-exe`/`--emit-dylib`/`--emit-lib` to strip the
+linked output (`-s` to the C driver). Useful for release builds where debug
+symbols and internal names should not ship.
+
+## Rebuilds, WAL reopen, and file locks
+
+`create_session` reopens a workspace's project WAL when one exists, so a
+session created in a directory that already has a `.aegis/wal.log` starts
+with the previously streamed items. To rebuild from scratch, pass
+`"reset": true` (which clears `wal.log` and `snapshot.json`) or stream only
+the changed items into the reopened session. Re-streaming a whole file into
+a session that already contains it produces duplicate-definition errors.
+
+On Windows a running executable or a loaded DLL cannot be overwritten:
+`link_object` then fails with `permission denied`. Link test builds to a new
+path (`app_v2.exe`, `module_v2.dll`) or stop the running process first.
+`run_object` waits for the process to exit; pass `background: true` (or launch
+out of band) for a long-running app. It returns a pid and does not capture
+output.
+
 ## Manual registration
 
 `aegis init` is a convenience; the config is plain JSON (or TOML for Codex). For
@@ -95,3 +127,31 @@ opencode, for example:
 For Claude Code or Cursor, the same server goes under `mcpServers` with
 `command`, `args`, and `env`. On Windows, `register-opencode.ps1` (shipped in the
 archive) remains available for opencode-only setups.
+
+## One installation, one compiler
+
+The agent host talks to exactly one egis-mcp server, which resolves its corpus and
+stdlib relative to its own executable. Keep a single Aegis install on the machine:
+leftover copies (for example under `C:\Users\<you>\AppData\Local\Aegis`) are
+older builds that the agent may discover and prefer over the registered one.
+Remove them after upgrading. The compiler prints its build identity on every run
+(`Parsed N top-level items` is followed by the binary's own version in verbose
+mode), and `aegis version` reports the toolchain version.
+
+## MCP resources (the language corpus)
+
+The MCP server exposes the entire language corpus as resources. `resources/list`
+returns one entry per page/module plus the two aggregate corpora:
+
+| URI pattern | Content |
+| --- | --- |
+| `aegis://docs/<page>` | A markdown page from `docs/src/` (e.g. `aegis://docs/stdlib/http.md`) |
+| `aegis://stdlib/<module>` | A seed module (e.g. `aegis://stdlib/http.aegis`) |
+| `aegis://llms.txt` | Compact table of contents of the whole corpus |
+| `aegis://llms-full.txt` | The entire corpus concatenated (~65 KB) |
+
+The server must be initialized (the host sends `initialize` then
+`resources/list`) before resources are readable; a "method not found" on
+`resources/list` usually means the host has not finished initialization or the
+server was started without `--docs`/`--stdlib`. Restart the host after
+`aegis init`.

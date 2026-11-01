@@ -123,6 +123,30 @@ impl Order @ OrderState::Pending {             // state-guarded impl
 }
 ```
 
+## Global variables
+
+A top-level `let` declares a module-global binding visible to every function in
+the file:
+
+```aegis
+let PI: Float = 3.14159
+let mut counter: Int = 0
+
+impl Foo {
+    fn bump(self) -> Int {
+        counter = counter + 1
+        return counter
+    }
+}
+```
+
+`let name: T = expr` is immutable; `let mut name: T = expr` is mutable and may
+be reassigned with `=`. Type inference works only for literal initializers
+(`Int`, `Float`, `Str`, `Bool`); other types need an annotation. A global
+needs either an initializer or a type annotation. Immutable globals cannot be
+reassigned, and redeclaring a name (global or `const`) is an error. Storage is
+zero-initialized before the initializers run at program entry.
+
 ## Generic structs
 
 Structs can have type parameters, enabling reusable data structures:
@@ -1413,9 +1437,22 @@ string. `+` concatenates; `==` / `!=` compare by content. Individual
 characters are reached with a `loop c in s` iteration, which binds `c` to a
 single-character `Str` (see [control flow](../language/control-flow.md)).
 
-## Interpolation
+## Raw strings
 
-A string literal can embed `{expr}` holes that are evaluated and stringified
+A raw string literal uses backticks instead of quotes and does **not**
+interpolate `{...}`: braces are literal, which is convenient for JSON, regexes,
+and path templates:
+
+```aegis
+let json = `{"name": "alice", "age": 30}`
+println(json)                       // {"name": "alice", "age": 30}
+let pat  = `path is /a/{id}`       // no escaping needed
+```
+
+The only escape in a raw string is a backslash-backtick for a literal backtick.
+Raw strings are a `Str` like any other and support all `String` methods.
+
+## Interpolation `{expr}` holes that are evaluated and stringified
 at run time:
 
 ```aegis
@@ -1760,6 +1797,25 @@ let miss = m.get_or("z", -1)    // -1
 `keys()` / `values()` allocate, so (like other list-valued results) bind the
 result to a name before calling further methods on it.
 
+## Shared collections (threaded builds)
+
+`stdlib/shared.aegis` wraps `List[Int]` and `Map[Str, Int]` in a mutex for use
+with `--threads N`. Each collection owns a `Handle[Mutex]`; locking is manual
+(Aegis has no RAII), so every read/write must be bracketed by `lock`/`unlock`.
+
+```aegis
+struct SharedList { mut items: List[Int], mut lock: Handle[Mutex] }
+struct SharedMap  { mut items: Map[Str, Int], mut lock: Handle[Mutex] }
+```
+
+| Type | Methods |
+| --- | --- |
+| `SharedList` | `new()`, `push(v)`, `len()`, `free()` |
+| `SharedMap` | `new()`, `insert(k, v)`, `get_or(k, d)`, `free()` |
+
+In single-threaded builds the mutex is uncontended overhead; the wrappers are
+only useful when `--threads N` is passed.
+
 ## Generic impls
 
 The `impl Stack[T]` blocks above are templates: the compiler expands one
@@ -1880,6 +1936,29 @@ container typed accessors. Because a `Map` iterates in hash order, only
 The parser intentionally targets the RFC 8259 core. The roadmap calls for
 indentation control in `to_string`, full `\uXXXX` code point decoding, and a
 `parse_file` convenience over the IO stdlib. See [Roadmap](../roadmap.md).
+
+## Unicode and NUL boundary
+
+The parser accepts `\u0000` in strings, but a NUL byte is not safe across the
+C ABI used by the runtime and by SQLite/FFI bindings: it terminates C strings
+and can truncate reads/writes. Validate or strip NUL (`\u0000`) before passing
+parsed JSON to any C-backed API, and prefer keeping JSON payloads inside the
+Aegis `String` type.
+## Building JSON
+
+Construct values with the enum variants directly, then serialize with
+`JsonParser.to_string`:
+
+`egis
+let mut m: Map[Str, Json] = {}
+m.insert("name", Json::Str("alice"))
+m.insert("age", Json::Num(30.0))
+let j = Json::Obj(m)
+let s = JsonParser {}.to_string(j)   // {"name":"alice","age":30}
+`
+
+Arrays: Json::Arr(xs) where xs: List[Json]. Use Json::Null, Json::Bool(b), Json::Num(f), Json::Str(s).
+
 
 # stdlib/csv-table
 
@@ -2137,6 +2216,7 @@ Value-level compiler builtins (like `print` / `argc`).
 | `rand_seed(n)` | `Empty` | seed the PRNG; `0` restores the built-in default seed |
 | `rand_int(lo, hi)` | `Int` | uniform in the half-open range `[lo, hi)`; returns `lo` when `hi <= lo` |
 | `rand_float()` | `Float` | uniform in `[0.0, 1.0)` |
+| `sleep(ms)` | `Empty` | pause the current thread for `ms` milliseconds |
 
 ```aegis
 rand_seed(42)
@@ -2172,6 +2252,10 @@ the same family the `Map` uses for its string keys.
 | `hash(s)` | `Int` | FNV-1a over the string's bytes; `hash("")` is defined |
 | `hash(n)` | `Int` | FNV-1a over the 8 little-endian bytes of the `Int` |
 | `hash(b)` | `Int` | `hash(true)` / `hash(false)`, i.e. `hash` of `1` / `0` |
+| `sha256(s)` | `Str` | SHA-256 hex digest of a string |
+| `hmac_sha256(key, data)` | `Str` | HMAC-SHA256 hex digest |
+| `aes_encrypt(key, plaintext)` | `Str` | AES-256-GCM (hex: nonce+ciphertext+tag) |
+| `aes_decrypt(key, ciphertext)` | `Str` | AES-256-GCM decrypt; `""` on failure |
 
 ```aegis
 let a = hash("hello")     // deterministic across runs
@@ -2190,6 +2274,104 @@ Properties:
 
 Verified by the `hash` checks in the builtin test suites.
 
+
+# stdlib/encoding
+
+# Encoding
+
+`stdlib/encoding.aegis` provides base64, hex, and URL percent-encoding helpers.
+
+```aegis
+let e = Encoding {}
+let b64 = e.base64_encode("hello")
+let hex = e.hex_encode("hi")
+let url = e.url_encode("a b")
+```
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `base64_encode(s)` | `Str` | standard base64 |
+| `base64_decode(s)` | `Str` | returns `""` on invalid input |
+| `hex_encode(s)` | `Str` | lowercase hex |
+| `hex_decode(s)` | `Str` | returns `""` on invalid input |
+| `url_encode(s)` | `Str` | RFC 3986 unreserved set |
+| `url_decode(s)` | `Str` | `+` becomes space |
+| `base64url_encode(s)` | `Str` | URL-safe base64 (no padding) |
+| `base64url_decode(s)` | `Str` | URL-safe base64 decode |
+
+# stdlib/db
+
+# Database interface (experimental)
+
+`stdlib/db.aegis` defines Go-style traits for database drivers:
+
+- `DbDriver`: `open(path) -> DbConn`
+- `DbConn`: `exec(sql) -> Int`, `close()`
+- `DbRows`: `next()`, `get_str(i)`, `get_int(i)`, `get_float(i)`
+
+Drivers implement these traits; application code depends only on the traits.
+A SQLite driver is not auto-loaded (it requires linking SQLite); see the
+e2e SQLite suite for a concrete FFI example.
+
+# stdlib/regex
+
+# Regex
+
+`stdlib/regex.aegis` provides a recursive regex matcher backed by the runtime
+regex engine.
+
+| Method | Notes |
+| --- | --- |
+| `is_match(pattern, text)` | supports `.`, `*`, `+`, `?`, character classes `[a-z]`, anchors `^`/`$`, alternation `\|`, and escapes `\d \w \s` |
+
+```aegis
+let r = Regex {}
+println(str(r.is_match("a*b", "aaab")))     // true
+println(str(r.is_match("[a-z]+", "abc")))   // true
+println(str(r.is_match("^abc$", "abc")))    // true
+println(str(r.is_match("a|b", "b")))        // true
+```
+
+Patterns are matched against the whole input unless anchored; an unanchored
+pattern matches if it occurs anywhere in the text.
+EOF
+path:
+D:\dev\opencode\aegis\public-docs\src\stdlib\regex.md
+
+# stdlib/log
+
+# Logging
+
+`stdlib/log.aegis` provides a small structured logger.
+
+```aegis
+let log = Log {}
+log.set_level(1)
+log.info("started")
+log.warn("low disk")
+```
+
+| Method | Notes |
+| --- | --- |
+| `set_level(n)` | 0=debug,1=info,2=warn,3=error |
+| `set_file(path)` | write to file instead of stdout |
+| `debug/info/warn/error(msg)` | emit if level allows |
+
+# stdlib/auth
+
+# Auth
+
+`stdlib/auth.aegis` provides basic auth and cookie helpers.
+
+```aegis
+let a = Auth {}
+let token = a.basic_encode("user", "pass")
+let decoded = a.basic_decode("Basic " + token)
+let v = a.cookie_get("a=1; b=2", "b")
+
+let token = a.jwt_sign(`{"sub":"123"}`, "secret")
+let payload = a.jwt_verify(token, "secret")
+```
 
 # stdlib/net
 
@@ -2244,8 +2426,79 @@ dial.
 Everything is synchronous - one connection at a time, no threads. Handles are
 opaque: they must not be stored in containers crossing the FFI boundary, and are
 closed explicitly. `recv` returning `""` is the caller's stop signal (EOF and
-error share the channel). The externs are declared in `stdlib/net.aegis`; the module compiles standalone with
-compiler builtins only.
+error share the channel). ## TLS / HTTPS
+
+A TLS connection is still a socket underneath, so `recv`, `send`,
+`close_conn`, `poll` and `peer_name` route through the session unchanged:
+every helper written against plain TCP (including `http.aegis`) works over TLS
+without modification.
+
+```aegis
+let net = Net {}
+if net.init() != 0 { /* ... */ }
+if !net.tls_available() {
+    println("TLS unavailable: " + net.tls_last_error())
+}
+let l = net.listen_tls("127.0.0.1", 0, "server.pem", "server-key.pem")
+let port = net.port(l)
+let conn = net.connect_tls("127.0.0.1", port, "localhost", "ca.pem")
+println("negotiated: " + net.tls_version(conn))
+```
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `tls_available()` | `Bool` | `true` when a backend is usable (SChannel on Windows; OpenSSL 1.1/3.x on POSIX) |
+| `tls_last_error()` | `Str` | last TLS error message, empty when nothing failed |
+| `tls_version(conn)` | `Str` | `"TLSv1.2"` etc. for a live connection |
+| `connect_tls(host, port, server_name, ca_path)` | `Handle[TcpConn]` | verified client; `""` `ca_path` uses the system trust store; `null` on failure |
+| `connect_tls_insecure(host, port, server_name)` | `Handle[TcpConn]` | no certificate or hostname verification (tests only) |
+| `listen_tls(host, port, cert_path, key_path)` | `Handle[TcpListener]` | TLS listener; accepted connections are handshaken before `accept` returns |
+
+Notes:
+
+- `server_name` drives SNI and hostname verification, so it may differ from
+  the dial address (`connect_tls("127.0.0.1", port, "localhost", ca)`).
+- On POSIX the backend is `libssl`/`libcrypto` 1.1 or 3.x, loaded with
+  `dlopen` on first use: a plain-TCP program never gains a link-time `libssl`
+  dependency. TLS 1.2 is the floor (`SSL_CTX_ctrl(..., 123, 0x0303)`).
+- On Windows the backend is SChannel + Crypt32; the server certificate must
+  be a PKCS#12 bundle (`.pfx`) and `key_path` is ignored.
+- `ca_path == ""` means system roots. A separate `connect_tls_insecure` exists
+  for tests and local pinning; do not use it in production code.
+- A wrong root or hostname mismatch makes `connect_tls` return `null` and
+  stores the reason in `tls_last_error()`.
+- TLS renegotiation initiated by the peer is attempted via SChannel's
+  ApplyControlToken/InitializeSecurityContext handshake; on failure the read
+  returns an error and 	ls_last_error() reports the reason.
+
+## UDP
+
+Connectionless datagrams use a separate `Handle[UdpSocket]`:
+
+```aegis
+let net = Net {}
+if net.init() != 0 { /* ... */ }
+let s = net.udp_socket()
+net.udp_bind(s, "127.0.0.1", 0)
+net.udp_sendto(s, "ping", "127.0.0.1", 9000)
+let pkt = net.udp_recvfrom(s, 1024)   // UdpPacket { data, host, port }
+net.udp_close(s)
+```
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `udp_socket()` | `Handle[UdpSocket]` | create a datagram socket |
+| `udp_bind(sock, host, port)` | `Int` | bind to a local address/port; `0` on success |
+| `udp_sendto(sock, data, host, port)` | `Int` | bytes sent; `-1` on error |
+| `udp_recvfrom(sock, max)` | `UdpPacket` | datagram up to `max` bytes plus sender address |
+| `udp_set_nonblocking(sock, mode)` | `Int` | toggle non-blocking mode |
+| `udp_set_timeout(sock, recv_ms, send_ms)` | `Int` | set receive/send timeouts in milliseconds |
+| `udp_poll(sock, events, timeout_ms)` | `Int` | poll for readability/writability |
+| `udp_close(sock)` | | release the socket handle |
+
+`UdpPacket` has fields `data: Str`, `host: Str`, `port: Int`. Polling uses the
+same event bitmask as TCP (`1` = readable, `2` = writable).
+
 
 # stdlib/http
 
@@ -2281,8 +2534,11 @@ let rc = http.serve(8080, handler())
 | `respond_400()` | `Response` | status 400, `"bad request"` |
 | `with_header(r, name, value)` | `Response` | copy `r` with one more header |
 | `respond_json(body)` | `Response` | status 200 with `Content-Type: application/json; charset=utf-8` |
+| `json_escape(s)` | `Str` | escape a string for safe inclusion in a JSON string literal |
 | `serve_on(net, listener, handler)` | `Int` | answer exactly one connection on a pre-bound listener, then release it |
 | `serve(port, handler)` | `Int` | listen on `127.0.0.1` and answer connections until the listener dies |
+| `serve_on_tls(net, listener, handler)` | `Int` | TLS variant of `serve_on` (TLS is transparent to the handler) |
+| `serve_tls(port, cert_path, key_path, handler)` | `Int` | TLS server; POSIX takes a PEM chain + PEM key, Windows a PKCS#12 (`.pfx`) bundle |
 
 `serve_on` splits out the bind so the caller can pick an ephemeral port, read it
 back with `net.port(l)`, and publish it before blocking in `accept` - the shape
@@ -2305,17 +2561,101 @@ duplicate request header collapses to the last value. Custom
 `Map[Str, Str]`), and sets `path` to include the query string (split on `?`
 yourself). Reads stop at the header terminator or the 64 KiB cap
 (`read_request`), which covers GET and POST-with-body; there is no chunked
-encoding or keep-alive, and every response sets `Connection: close`. A
+encoding. Keep-alive is supported: `response_text_ex(r, true)` emits
+`Connection: keep-alive` and `serve`/`serve_on` reuse the connection for
+subsequent requests until the peer closes. A
 malformed request is reported as a `Request` whose `method` is `""` (check with
 `is_valid`) - v1 cannot carry a struct inside `Option[...]`, so the empty
 sentinel is the error channel rather than `none`.
+
+## TLS clients
+
+`client_request_tls` (plus `client_get_tls` / `client_post_tls`) mirror the
+plain-HTTP helpers but dial with `net.connect_tls`. The `server_name` argument
+is put in SNI and checked against the peer certificate; `ca_path` is a PEM
+bundle of trusted roots (`""` means the system trust store). A failed
+handshake or verification returns a `Response` with status `0` and the reason
+in `body`.
+
+```aegis
+let http = Http {}
+let r = http.client_get_tls("127.0.0.1", port, "localhost", "ca.pem", "/hello")
+```
+
+## Stateful handlers, path patterns and serving notes
+
+A handler is a closure, so state that must survive between requests lives in a
+captured container rather than a scalar local:
+
+```aegis
+let mut counts: Map[Str, Int] = {}
+let handler = |req: Request| -> Response {
+    let c = counts.get_or(req.path, 0) + 1
+    counts.insert(req.path, c)
+    return Http {}.respond_ok(str(c))
+}
+```
+
+Since 0.1.0, closures may capture named structs and enum constructors in
+addition to scalars, strings, handles and containers, so a parsed `JsonParser`
+or a `Json::Num`/`Json::Str` variant can be referenced inside a handler without
+instantiating it on every request. Capturing `self` (the method receiver) is
+still rejected.
+
+Route patterns such as `"/contacts/{id}"` contain literal braces, but Aegis
+interpolates `{...}` inside string literals, so escape them: `"/contacts/\{id\}"`.
+`path_matches` and `match_path` (and `HttpRouter`) work on the escaped form.
+
+`serve`/`serve_tls` handle one connection to completion before the next
+`accept`. They suit a minimal API or a smoke test; production servers that
+need concurrency should run behind a separate process or a future threaded
+runtime.
+
+## Client helpers
+
+In addition to `client_request`/`client_get`/`client_post` and their `_tls`
+variants, the module ships a URL parser and convenience wrappers:
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `parse_url(url)` | `Url` | parse `http://`/`https://` URLs; defaults port 80/443 and path `/` |
+| `client_get_url(url)` | `Response` | GET against a full URL string |
+| `client_post_url(url, body)` | `Response` | POST against a full URL string |
+
+`Url` has fields `host: Str`, `port: Int`, `path: Str`, `tls: Bool`.
+
+## WebSocket upgrade
+
+`ws_is_upgrade`, `ws_accept` and `ws_upgrade_response` implement the HTTP
+upgrade handshake; `ws_send`/`ws_recv` wrap the runtime's framed text helpers:
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `ws_is_upgrade(req)` | `Bool` | whether `req` is a WebSocket upgrade request |
+| `ws_accept(req)` | `Str` | `Sec-WebSocket-Accept` value for the request key |
+| `ws_upgrade_response(req)` | `Response` | 101 Switching Protocols response |
+| `ws_send(conn, text)` | `Int` | send a text frame |
+| `ws_recv(conn, max)` | `Str` | receive a text frame (up to `max` bytes) |
+| `ws_ping(conn, text)` | `Int` | send a ping frame |
+| `ws_pong(conn, text)` | `Int` | send a pong frame |
+| `ws_close(conn, code)` | `Int` | send a close frame |
 
 ## Constraints
 
 Single-threaded: one connection is handled to completion before the next
 `accept`. `serve` binds `127.0.0.1` (use `net.listen` + `serve_on` for other
-bind addresses). The stdlib is not auto-loaded: splice `http.aegis` (and
-`net.aegis`) into the compilation ahead of your program.
+bind addresses). Since 0.1.0 the seed modules are auto-loaded by the compiler
+prelude, so `Http` and `Net` are available without listing files; use
+`--no-prelude` to disable or `--stdlib DIR` to override.
+
+## Threaded serving (MT8)
+
+`serve_threaded(port, handler)` accepts connections in the main thread and
+handles each on a worker thread (via `thread_spawn`), so requests no longer
+serialize behind a single `accept` loop. Each connection keeps its own
+keep-alive loop. Mutable globals are rejected under `--threads`, so shared
+state must use `SharedList`/`SharedMap` or actor state.
+
 
 # quickstart
 
@@ -2516,6 +2856,38 @@ pass; `link_object` produces an executable; `run_object` executes it. The corpus
 is served as `aegis://docs/<page>` and `aegis://stdlib/<module>`, plus
 `aegis://llms.txt` and `aegis://llms-full.txt` for a one-shot bootstrap.
 
+## Hot-swap (experimental)
+
+`Module` and `actor_hot_swap` provide *state migration*, not in-place code
+replacement: a new module is loaded, its migrate entry point runs on the
+actor's current state, and the module is then unloaded. Event handlers stay
+compiled into the host program, and `export fn` is scalar-only (no `Str`), so
+formatting logic cannot live in a swappable module. On Windows, build
+replacement modules under versioned filenames (`module_v2.dll`) because a
+loaded DLL cannot be overwritten.
+
+## Stripping symbols
+
+Pass `--strip` to `--emit-exe`/`--emit-dylib`/`--emit-lib` to strip the
+linked output (`-s` to the C driver). Useful for release builds where debug
+symbols and internal names should not ship.
+
+## Rebuilds, WAL reopen, and file locks
+
+`create_session` reopens a workspace's project WAL when one exists, so a
+session created in a directory that already has a `.aegis/wal.log` starts
+with the previously streamed items. To rebuild from scratch, pass
+`"reset": true` (which clears `wal.log` and `snapshot.json`) or stream only
+the changed items into the reopened session. Re-streaming a whole file into
+a session that already contains it produces duplicate-definition errors.
+
+On Windows a running executable or a loaded DLL cannot be overwritten:
+`link_object` then fails with `permission denied`. Link test builds to a new
+path (`app_v2.exe`, `module_v2.dll`) or stop the running process first.
+`run_object` waits for the process to exit; pass `background: true` (or launch
+out of band) for a long-running app. It returns a pid and does not capture
+output.
+
 ## Manual registration
 
 `aegis init` is a convenience; the config is plain JSON (or TOML for Codex). For
@@ -2538,6 +2910,34 @@ opencode, for example:
 For Claude Code or Cursor, the same server goes under `mcpServers` with
 `command`, `args`, and `env`. On Windows, `register-opencode.ps1` (shipped in the
 archive) remains available for opencode-only setups.
+
+## One installation, one compiler
+
+The agent host talks to exactly one egis-mcp server, which resolves its corpus and
+stdlib relative to its own executable. Keep a single Aegis install on the machine:
+leftover copies (for example under `C:\Users\<you>\AppData\Local\Aegis`) are
+older builds that the agent may discover and prefer over the registered one.
+Remove them after upgrading. The compiler prints its build identity on every run
+(`Parsed N top-level items` is followed by the binary's own version in verbose
+mode), and `aegis version` reports the toolchain version.
+
+## MCP resources (the language corpus)
+
+The MCP server exposes the entire language corpus as resources. `resources/list`
+returns one entry per page/module plus the two aggregate corpora:
+
+| URI pattern | Content |
+| --- | --- |
+| `aegis://docs/<page>` | A markdown page from `docs/src/` (e.g. `aegis://docs/stdlib/http.md`) |
+| `aegis://stdlib/<module>` | A seed module (e.g. `aegis://stdlib/http.aegis`) |
+| `aegis://llms.txt` | Compact table of contents of the whole corpus |
+| `aegis://llms-full.txt` | The entire corpus concatenated (~65 KB) |
+
+The server must be initialized (the host sends `initialize` then
+`resources/list`) before resources are readable; a "method not found" on
+`resources/list` usually means the host has not finished initialization or the
+server was started without `--docs`/`--stdlib`. Restart the host after
+`aegis init`.
 
 
 # examples
@@ -2646,6 +3046,10 @@ standard library support, and what is still on the way.
   generics with bounds, and closures with the higher-order list methods
   (`map`/`filter`/`fold`/`sort`).
 - **Modules** - multi-file compilation, `pub` visibility, and archive linking.
+- **Global variables** - top-level `let` / `let mut` bindings shared across a
+  file.
+- **Raw strings** - backtick literals with literal braces (only
+  backslash-backtick escapes).
 - **Enums** - user-defined sum types with payloads and exhaustive `match`.
 - **Sized numeric widths** - `i8`..`u64` and `f32`, with explicit conversions.
 - **Interop** - `extern "C"` (opaque handles, out params, C-string marshaling,
@@ -2655,11 +3059,20 @@ standard library support, and what is still on the way.
 ## Standard library
 
 - Math and transcendental functions, string operations, and `List`/`Map`
-  builtins.
-- In-Aegis collections: `Stack`, `Set`, `Queue`, and `Deque`.
+  builtins; `ord`/`chr` and `sleep`.
+- In-Aegis collections: `Stack`, `Set`, `Queue`, and `Deque`; mutex-backed
+  `SharedList`/`SharedMap` for threaded builds.
 - JSON parse/serialize, CSV encode/decode, and fixed-width tables.
-- File IO and stdin; time and a seeded PRNG; `hash(x)`.
-- Blocking TCP networking and a minimal HTTP/1.1 server.
+- File IO and stdin; time and a seeded PRNG; `hash(x)`; `Encoding`,
+  `Log`, and `Auth` (basic, cookies, JWT) helpers.
+- SHA-256, HMAC-SHA256, and AES-256-GCM crypto builtins.
+- Regex matcher with `.`, `*`, `+`, `?`, classes, anchors, alternation,
+  and escapes.
+- Database interface traits (Go-style `DbDriver`/`DbConn`/`DbRows`).
+- Blocking TCP and UDP networking, socket polling/timeouts, and an
+  HTTP/1.1 server with keep-alive, WebSocket upgrade handshake and
+  framing, and threaded serving (`serve_threaded`).
+- TLS/HTTPS end to end (SChannel on Windows, dlopen'd OpenSSL on POSIX).
 
 ## Tooling
 
@@ -2669,10 +3082,20 @@ standard library support, and what is still on the way.
   `aegis-daemon` / `aegis-ws` expose the streaming protocol.
 - Installers and packaging for Windows (x64) and Linux (x86_64), including
   Scoop.
+- Optional threaded builds (`--threads N`) with mutex-backed shared
+  collections; mutable globals and mutable closure captures are rejected at
+  compile time. Single-threaded hot-swap of actor modules (`--hot-swap`).
+- Threaded HTTP serving is available via `serve_threaded` (MT8); `serve`
+  remains single-threaded for minimal setups.
 
 ## On the way
 
 - Cross-compilation between the supported targets.
-- More standard-library depth: JSON pretty-printing and richer string and
-  formatting helpers.
+- Multi-threaded hot-swap (MT6): stop-the-world + per-thread migration.
+- True in-place code replacement for hot-swap (currently state migration only)
+  and richer `export fn` marshaling (e.g. `Str`) for swappable modules.
+- Stdlib depth: JSON pretty-printing, richer string/formatting helpers, and
+  a SQLite driver implementing the db traits.
+- HTTP client maturity: cookies, multipart, and streaming request/response
+  bodies are still pending.
 

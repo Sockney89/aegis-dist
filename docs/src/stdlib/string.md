@@ -5,9 +5,22 @@ string. `+` concatenates; `==` / `!=` compare by content. Individual
 characters are reached with a `loop c in s` iteration, which binds `c` to a
 single-character `Str` (see [control flow](../language/control-flow.md)).
 
-## Interpolation
+## Raw strings
 
-A string literal can embed `{expr}` holes that are evaluated and stringified
+A raw string literal uses backticks instead of quotes and does **not**
+interpolate `{...}`: braces are literal, which is convenient for JSON, regexes,
+and path templates:
+
+```aegis
+let json = `{"name": "alice", "age": 30}`
+println(json)                       // {"name": "alice", "age": 30}
+let pat  = `path is /a/{id}`       // no escaping needed
+```
+
+The only escape in a raw string is a backslash-backtick for a literal backtick.
+Raw strings are a `Str` like any other and support all `String` methods.
+
+## Interpolation `{expr}` holes that are evaluated and stringified
 at run time:
 
 ```aegis

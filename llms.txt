@@ -35,6 +35,11 @@ aegis://llms-full.txt.
 - [stdlib/os.md](stdlib/os.md): OS seed module: env/cwd, filesystem (mkdir/rmdir/remove/rename/copy/stat), pid/time, exec & shell
 - [stdlib/time-rand.md](stdlib/time-rand.md): Time & randomness builtins: now_ms and a seeded PRNG
 - [stdlib/hashing.md](stdlib/hashing.md): Hashing builtin: hash(x) FNV-1a over Int/Bool/String
+- [stdlib/encoding.md](stdlib/encoding.md): Base64, hex, and URL percent-encoding helpers
+- [stdlib/db.md](stdlib/db.md): Database interface traits (Go-style drivers)
+- [stdlib/regex.md](stdlib/regex.md): Minimal recursive regex matcher
+- [stdlib/log.md](stdlib/log.md): Structured logger with levels and timestamps
+- [stdlib/auth.md](stdlib/auth.md): Basic auth and cookie helpers
 - [stdlib/net.md](stdlib/net.md): Blocking TCP: init/listen/accept/connect/recv/send, hostname DNS resolution
 - [stdlib/http.md](stdlib/http.md): Minimal HTTP/1.1 server: Request/Response, serve_on + serve accept loop, plain-code routing
 

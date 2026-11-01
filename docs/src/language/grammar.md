@@ -86,6 +86,30 @@ impl Order @ OrderState::Pending {             // state-guarded impl
 }
 ```
 
+## Global variables
+
+A top-level `let` declares a module-global binding visible to every function in
+the file:
+
+```aegis
+let PI: Float = 3.14159
+let mut counter: Int = 0
+
+impl Foo {
+    fn bump(self) -> Int {
+        counter = counter + 1
+        return counter
+    }
+}
+```
+
+`let name: T = expr` is immutable; `let mut name: T = expr` is mutable and may
+be reassigned with `=`. Type inference works only for literal initializers
+(`Int`, `Float`, `Str`, `Bool`); other types need an annotation. A global
+needs either an initializer or a type annotation. Immutable globals cannot be
+reassigned, and redeclaring a name (global or `const`) is an error. Storage is
+zero-initialized before the initializers run at program entry.
+
 ## Generic structs
 
 Structs can have type parameters, enabling reusable data structures:

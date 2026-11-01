@@ -8,6 +8,7 @@ Value-level compiler builtins (like `print` / `argc`).
 | `rand_seed(n)` | `Empty` | seed the PRNG; `0` restores the built-in default seed |
 | `rand_int(lo, hi)` | `Int` | uniform in the half-open range `[lo, hi)`; returns `lo` when `hi <= lo` |
 | `rand_float()` | `Float` | uniform in `[0.0, 1.0)` |
+| `sleep(ms)` | `Empty` | pause the current thread for `ms` milliseconds |
 
 ```aegis
 rand_seed(42)

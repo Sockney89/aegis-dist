@@ -9,6 +9,10 @@ the same family the `Map` uses for its string keys.
 | `hash(s)` | `Int` | FNV-1a over the string's bytes; `hash("")` is defined |
 | `hash(n)` | `Int` | FNV-1a over the 8 little-endian bytes of the `Int` |
 | `hash(b)` | `Int` | `hash(true)` / `hash(false)`, i.e. `hash` of `1` / `0` |
+| `sha256(s)` | `Str` | SHA-256 hex digest of a string |
+| `hmac_sha256(key, data)` | `Str` | HMAC-SHA256 hex digest |
+| `aes_encrypt(key, plaintext)` | `Str` | AES-256-GCM (hex: nonce+ciphertext+tag) |
+| `aes_decrypt(key, ciphertext)` | `Str` | AES-256-GCM decrypt; `""` on failure |
 
 ```aegis
 let a = hash("hello")     // deterministic across runs

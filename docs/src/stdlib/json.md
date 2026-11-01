@@ -98,3 +98,25 @@ container typed accessors. Because a `Map` iterates in hash order, only
 The parser intentionally targets the RFC 8259 core. The roadmap calls for
 indentation control in `to_string`, full `\uXXXX` code point decoding, and a
 `parse_file` convenience over the IO stdlib. See [Roadmap](../roadmap.md).
+
+## Unicode and NUL boundary
+
+The parser accepts `\u0000` in strings, but a NUL byte is not safe across the
+C ABI used by the runtime and by SQLite/FFI bindings: it terminates C strings
+and can truncate reads/writes. Validate or strip NUL (`\u0000`) before passing
+parsed JSON to any C-backed API, and prefer keeping JSON payloads inside the
+Aegis `String` type.
+## Building JSON
+
+Construct values with the enum variants directly, then serialize with
+`JsonParser.to_string`:
+
+`egis
+let mut m: Map[Str, Json] = {}
+m.insert("name", Json::Str("alice"))
+m.insert("age", Json::Num(30.0))
+let j = Json::Obj(m)
+let s = JsonParser {}.to_string(j)   // {"name":"alice","age":30}
+`
+
+Arrays: Json::Arr(xs) where xs: List[Json]. Use Json::Null, Json::Bool(b), Json::Num(f), Json::Str(s).

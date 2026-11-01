@@ -49,5 +49,75 @@ dial.
 Everything is synchronous - one connection at a time, no threads. Handles are
 opaque: they must not be stored in containers crossing the FFI boundary, and are
 closed explicitly. `recv` returning `""` is the caller's stop signal (EOF and
-error share the channel). The externs are declared in `stdlib/net.aegis`; the module compiles standalone with
-compiler builtins only.
+error share the channel). ## TLS / HTTPS
+
+A TLS connection is still a socket underneath, so `recv`, `send`,
+`close_conn`, `poll` and `peer_name` route through the session unchanged:
+every helper written against plain TCP (including `http.aegis`) works over TLS
+without modification.
+
+```aegis
+let net = Net {}
+if net.init() != 0 { /* ... */ }
+if !net.tls_available() {
+    println("TLS unavailable: " + net.tls_last_error())
+}
+let l = net.listen_tls("127.0.0.1", 0, "server.pem", "server-key.pem")
+let port = net.port(l)
+let conn = net.connect_tls("127.0.0.1", port, "localhost", "ca.pem")
+println("negotiated: " + net.tls_version(conn))
+```
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `tls_available()` | `Bool` | `true` when a backend is usable (SChannel on Windows; OpenSSL 1.1/3.x on POSIX) |
+| `tls_last_error()` | `Str` | last TLS error message, empty when nothing failed |
+| `tls_version(conn)` | `Str` | `"TLSv1.2"` etc. for a live connection |
+| `connect_tls(host, port, server_name, ca_path)` | `Handle[TcpConn]` | verified client; `""` `ca_path` uses the system trust store; `null` on failure |
+| `connect_tls_insecure(host, port, server_name)` | `Handle[TcpConn]` | no certificate or hostname verification (tests only) |
+| `listen_tls(host, port, cert_path, key_path)` | `Handle[TcpListener]` | TLS listener; accepted connections are handshaken before `accept` returns |
+
+Notes:
+
+- `server_name` drives SNI and hostname verification, so it may differ from
+  the dial address (`connect_tls("127.0.0.1", port, "localhost", ca)`).
+- On POSIX the backend is `libssl`/`libcrypto` 1.1 or 3.x, loaded with
+  `dlopen` on first use: a plain-TCP program never gains a link-time `libssl`
+  dependency. TLS 1.2 is the floor (`SSL_CTX_ctrl(..., 123, 0x0303)`).
+- On Windows the backend is SChannel + Crypt32; the server certificate must
+  be a PKCS#12 bundle (`.pfx`) and `key_path` is ignored.
+- `ca_path == ""` means system roots. A separate `connect_tls_insecure` exists
+  for tests and local pinning; do not use it in production code.
+- A wrong root or hostname mismatch makes `connect_tls` return `null` and
+  stores the reason in `tls_last_error()`.
+- TLS renegotiation initiated by the peer is attempted via SChannel's
+  ApplyControlToken/InitializeSecurityContext handshake; on failure the read
+  returns an error and 	ls_last_error() reports the reason.
+
+## UDP
+
+Connectionless datagrams use a separate `Handle[UdpSocket]`:
+
+```aegis
+let net = Net {}
+if net.init() != 0 { /* ... */ }
+let s = net.udp_socket()
+net.udp_bind(s, "127.0.0.1", 0)
+net.udp_sendto(s, "ping", "127.0.0.1", 9000)
+let pkt = net.udp_recvfrom(s, 1024)   // UdpPacket { data, host, port }
+net.udp_close(s)
+```
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `udp_socket()` | `Handle[UdpSocket]` | create a datagram socket |
+| `udp_bind(sock, host, port)` | `Int` | bind to a local address/port; `0` on success |
+| `udp_sendto(sock, data, host, port)` | `Int` | bytes sent; `-1` on error |
+| `udp_recvfrom(sock, max)` | `UdpPacket` | datagram up to `max` bytes plus sender address |
+| `udp_set_nonblocking(sock, mode)` | `Int` | toggle non-blocking mode |
+| `udp_set_timeout(sock, recv_ms, send_ms)` | `Int` | set receive/send timeouts in milliseconds |
+| `udp_poll(sock, events, timeout_ms)` | `Int` | poll for readability/writability |
+| `udp_close(sock)` | | release the socket handle |
+
+`UdpPacket` has fields `data: Str`, `host: Str`, `port: Int`. Polling uses the
+same event bitmask as TCP (`1` = readable, `2` = writable).
