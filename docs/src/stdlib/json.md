@@ -120,3 +120,10 @@ let s = JsonParser {}.to_string(j)   // {"name":"alice","age":30}
 `
 
 Arrays: Json::Arr(xs) where xs: List[Json]. Use Json::Null, Json::Bool(b), Json::Num(f), Json::Str(s).
+
+
+## New in 0.1.4
+
+- 	o_string_pretty(j) - indented JSON.
+- parse_lines(text) / encode_lines(items) - JSON Lines.
+- pointer(j, path) - JSON Pointer (RFC 6901) lookup.

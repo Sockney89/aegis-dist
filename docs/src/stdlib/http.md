@@ -151,3 +151,10 @@ handles each on a worker thread (via `thread_spawn`), so requests no longer
 serialize behind a single `accept` loop. Each connection keeps its own
 keep-alive loop. Mutable globals are rejected under `--threads`, so shared
 state must use `SharedList`/`SharedMap` or actor state.
+
+
+## New in 0.1.4
+
+- Http.mime_type(path) - extension to MIME type.
+- Http.static_file now sets Content-Type.
+- Http.ws_send_binary(conn, data) - binary WebSocket frames.

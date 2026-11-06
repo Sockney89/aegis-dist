@@ -14,3 +14,8 @@ log.warn("low disk")
 | `set_level(n)` | 0=debug,1=info,2=warn,3=error |
 | `set_file(path)` | write to file instead of stdout |
 | `debug/info/warn/error(msg)` | emit if level allows |
+
+## New in 0.1.4
+
+- set_json(on) - emit JSON lines.
+- set_max_bytes(n) - size-based rotation (renames to .1).

@@ -190,3 +190,87 @@ JSON pretty-printing and a richer string formatter are still on the way.
 Struct-keyed maps are deliberately out of scope: structs are mutable, so a
 mutated key would invalidate its hash slot — encode composite keys as a
 `String` instead. See [Roadmap](../roadmap.md).
+
+
+## Heap (stdlib/heap.aegis)
+
+Binary min-heap priority queue.
+
+`egis
+struct Heap { mut items: List[Int] }
+
+impl Heap {
+    fn new(self) -> Heap
+    fn len(self) -> Int
+    fn is_empty(self) -> Bool
+    fn push(mut self, v: Int) -> Empty
+    requires !self.is_empty()
+    fn pop(mut self) -> Int
+    requires !self.is_empty()
+    fn peek(self) -> Int
+}
+`
+
+## SortedSet (stdlib/sortedset.aegis)
+
+Sorted set of Ints with binary-search contains.
+
+`egis
+struct SortedSet { mut items: List[Int] }
+
+impl SortedSet {
+    fn new(self) -> SortedSet
+    fn len(self) -> Int
+    fn contains(self, v: Int) -> Bool
+    fn insert(mut self, v: Int) -> Empty
+    fn remove(mut self, v: Int) -> Bool
+}
+`
+
+## SortedMap (stdlib/sortedmap.aegis)
+
+Sorted map with Int keys.
+
+`egis
+struct SortedMap { mut keys: List[Int], mut vals: Map[Int, Int] }
+
+impl SortedMap {
+    fn new(self) -> SortedMap
+    fn len(self) -> Int
+    fn contains(self, key: Int) -> Bool
+    fn get(self, key: Int) -> Option[Int]
+    fn insert(mut self, key: Int, value: Int) -> Empty
+    fn remove(mut self, key: Int) -> Bool
+    fn keys_list(self) -> List[Int]
+}
+`
+
+## LRU cache (stdlib/lru.aegis)
+
+Least-recently-used cache with Int keys and values.
+
+`egis
+struct Lru { mut cap: Int, mut keys: List[Int], mut vals: Map[Int, Int] }
+
+impl Lru {
+    fn new(cap: Int) -> Lru
+    fn len(self) -> Int
+    fn get(mut self, key: Int) -> Option[Int]
+    fn put(mut self, key: Int, value: Int) -> Empty
+}
+`
+
+## Trie (stdlib/trie.aegis)
+
+Prefix tree over strings.
+
+`egis
+struct Trie { mut children: Map[Str, Trie], mut is_end: Bool }
+
+impl Trie {
+    fn new(self) -> Trie
+    fn insert(mut self, word: Str) -> Empty
+    fn contains(self, word: Str) -> Bool
+    fn starts_with(self, prefix: Str) -> Bool
+}
+`

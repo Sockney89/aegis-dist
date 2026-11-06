@@ -100,6 +100,6 @@ project under `docs/`). Two AI-oriented corpora, `llms.txt` and
 
 - Installer scripts and site configuration: MIT (see `LICENSE`).
 - Documentation content: CC BY 4.0 (see `LICENSE-DOCS`).
-- Released binaries: proprietary (`LicenseRef-Proprietary`); see the `LICENSE`
-  and `NOTICE` files inside each release archive, including the third-party
-  attribution for the statically linked LLVM and its runtimes.
+- Released binaries: proprietary (`LicenseRef-Proprietary`); see the `LICENSE`,
+  `EULA`, and `NOTICE` files inside each release archive, including the
+  third-party attribution for the statically linked LLVM and its runtimes.

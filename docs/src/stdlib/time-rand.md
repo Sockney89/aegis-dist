@@ -29,3 +29,9 @@ Argument types are checked: `rand_int("a", 3)` fails with
 `rand_int bounds must be Ints, got Str`. Verified by
 The test suite verifies reproducibility, range invariants, and clock
 monotonicity.
+
+
+## New in 0.1.4
+
+- Time.parse_utc(s) - parse YYYY-MM-DDTHH:MM:SSZ to Unix seconds.
+- secure_rand() builtin - CSPRNG 64-bit integer.

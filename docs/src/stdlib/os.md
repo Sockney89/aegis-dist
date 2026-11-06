@@ -118,3 +118,10 @@ match os.rmdir("scratch_empty") {
 
 The module ships with a self-checking suite (`tests/e2e/os_suite.aegis`) that
 exercises every method against a scratch directory, including the error paths.
+
+
+## New in 0.1.4
+
+- tomic_write(path, content) - write via temp file + rename.
+- walk(dir) - recursively collect all file paths.
+- join_path(a, b) - path join.

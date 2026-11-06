@@ -42,6 +42,14 @@ aegis://llms-full.txt.
 - [stdlib/auth.md](stdlib/auth.md): Basic auth and cookie helpers
 - [stdlib/net.md](stdlib/net.md): Blocking TCP: init/listen/accept/connect/recv/send, hostname DNS resolution
 - [stdlib/http.md](stdlib/http.md): Minimal HTTP/1.1 server: Request/Response, serve_on + serve accept loop, plain-code routing
+- [stdlib/strbuf.md](stdlib/strbuf.md): StrBuf string builder
+- [stdlib/path.md](stdlib/path.md): Path & filesystem helpers
+- [stdlib/cli.md](stdlib/cli.md): CLI argument parsing
+- [stdlib/platform.md](stdlib/platform.md): Platform detection & well-known dirs
+- [stdlib/tracing.md](stdlib/tracing.md): Tracing spans
+- [stdlib/dotenv.md](stdlib/dotenv.md): Dotenv loader
+- [stdlib/sandbox.md](stdlib/sandbox.md): Sandbox / safe subprocess
+- [stdlib/metrics.md](stdlib/metrics.md): Metrics registry
 
 ## Using Aegis
 - [quickstart.md](quickstart.md): Install Aegis (Windows or Linux), hello world, building executables

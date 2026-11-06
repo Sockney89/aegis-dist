@@ -55,3 +55,10 @@ so the module stays standalone and does not depend on `stdlib/mathstr.aegis`.
 
 The self-test suites exercise quoted fields, CRLF and LF records, the
 trailing-newline rule, blank input, encode round-trips, and table alignment.
+
+
+## New in 0.1.4
+
+- Csv.parse_delim(text, delim) / encode_delim(rows, delim) - configurable delimiter.
+- Csv.append_file(path, rows) - streaming append.
+- Table.pad_cell_right/center/aligned - alignment helpers.

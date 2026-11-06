@@ -27,10 +27,31 @@ The compiler also exposes value-level builtins: `print(...)`, `println(...)`,
 - [Regex (minimal)](regex.md)
 - [Logging](log.md)
 - [Auth](auth.md)
+- [TOML](toml.md)
+- [YAML](yaml.md)
+- [Metrics](metrics.md)
+- [Testing](test.md)
+- [Channels](channel.md)
+- [StrBuf](strbuf.md)
+- [Path](path.md)
+- [CLI](cli.md)
+- [Platform](platform.md)
+- [Tracing](tracing.md)
+- [Dotenv](dotenv.md)
+- [Sandbox](sandbox.md)
+- [StrBuf (string builder)](#strbuf)
+- [Path & filesystem helpers](#path)
+- [CLI argument parsing](#cli)
+- [Platform detection](#platform)
+- [Heap / priority queue](#heap)
+- [Sorted set / sorted map](#sorted-collections)
+- [LRU cache](#lru)
+- [Trie](#trie)
+- [Tracing](#tracing)
+- [Dotenv](#dotenv)
+- [Sandbox / safe subprocess](#sandbox)
 
 ## Seed modules vs builtins (provenance)
-
-| Capability | Where |
 |---|---|
 | `String.length()`, indexing `s[i]`, concatenation `+`, equality/comparison | Builtin |
 | `List.length()`, `xs[i]`, `.append(v)`, `.pop()`, `.contains(x)`, `.index_of(x)`, `.reverse()`, `.slice(a,b)`, `.dedupe()` | Builtin |
@@ -42,3 +63,27 @@ The compiler also exposes value-level builtins: `print(...)`, `println(...)`,
 | JSON parsing/serialization | Seed module (`stdlib/json.aegis`) |
 | OS access: env, cwd, mkdir/rmdir/remove/rename/copy, stat, pid/time, exec/shell | Seed module (`stdlib/os.aegis`) |
 | CSV/Table helpers | Seed modules (`stdlib/csv.aegis`, `table.aegis`) |
+
+
+## New modules (0.1.4)
+
+- **StrBuf** (stdlib/strbuf.aegis): growable string builder; append/append_int/append_float/append_char/clear/len/to_string/write_file/reserve. Avoids O(n^2) concat.
+- **Path** (stdlib/path.aegis): join, normalize, basename, dirname, ext, mkdir_all, remove_all, glob, temp_dir, temp_file.
+- **Cli** (stdlib/cli.aegis): has_flag, get_option, positionals, raw, usage.
+- **Platform** (stdlib/platform.aegis): is_windows/is_linux/os_name, home_dir/config_dir/cache_dir/temp_dir.
+- **Heap** (stdlib/heap.aegis): binary min-heap priority queue (push/pop/peek/len/is_empty).
+- **SortedSet / SortedMap** (stdlib/sortedset.aegis, sortedmap.aegis): sorted collections with contains/insert/remove.
+- **Lru** (stdlib/lru.aegis): least-recently-used cache (get/put/len).
+- **Trie** (stdlib/trie.aegis): prefix tree (insert/contains/starts_with).
+- **Tracing** (stdlib/tracing.aegis): span start/end with timing.
+- **Dotenv** (stdlib/dotenv.aegis): load .env into environment.
+- **Sandbox** (stdlib/sandbox.aegis): safe subprocess execution.
+- **Auth**: const_time_eq added.
+- **Log**: JSON mode (set_json), size-based rotation (set_max_bytes).
+- **Csv**: configurable delimiters (parse_delim/encode_delim, append_file).
+- **Table**: alignment helpers (pad_cell_right/center/aligned).
+- **Json**: to_string_pretty, parse_lines/encode_lines, pointer.
+- **Time**: parse_utc.
+- **Os**: atomic_write, walk, join_path.
+- **Http**: mime_type, ws_send_binary, static_file sets Content-Type.
+- **Builtins**: str_to_int, secure_rand, str_from_chars.
