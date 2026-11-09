@@ -16,6 +16,6 @@ let url = e.url_encode("a b")
 | `hex_encode(s)` | `Str` | lowercase hex |
 | `hex_decode(s)` | `Str` | returns `""` on invalid input |
 | `url_encode(s)` | `Str` | RFC 3986 unreserved set |
-| `url_decode(s)` | `Str` | `+` becomes space |
+| `url_decode(s)` | `Str` | `+` becomes space; invalid `%XX` sequences are kept verbatim |
 | `base64url_encode(s)` | `Str` | URL-safe base64 (no padding) |
 | `base64url_decode(s)` | `Str` | URL-safe base64 decode |

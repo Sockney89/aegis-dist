@@ -19,5 +19,12 @@ impl Path {
     fn temp_dir(self) -> Str
     fn temp_file(self, prefix: Str) -> Str
 }
+
+Notes:
+- `mkdir_all` now returns `err` when a directory cannot be created
+  (previously it always returned `ok`).
+- `temp_file` appends a cryptographically random suffix to avoid
+  predictable temporary file names.
+- `remove_all` does not follow symbolic links.
 ```
 PY

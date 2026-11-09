@@ -157,4 +157,5 @@ state must use `SharedList`/`SharedMap` or actor state.
 
 - Http.mime_type(path) - extension to MIME type.
 - Http.static_file now sets Content-Type.
+- Http.static_file rejects paths containing `..` (returns 404).
 - Http.ws_send_binary(conn, data) - binary WebSocket frames.

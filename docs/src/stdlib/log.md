@@ -17,5 +17,5 @@ log.warn("low disk")
 
 ## New in 0.1.4
 
-- set_json(on) - emit JSON lines.
+- set_json(on) - emit JSON lines (properly escapes backslashes and control chars).
 - set_max_bytes(n) - size-based rotation (renames to .1).

@@ -34,4 +34,5 @@ monotonicity.
 ## New in 0.1.4
 
 - Time.parse_utc(s) - parse YYYY-MM-DDTHH:MM:SSZ to Unix seconds.
+  Validates separators and field ranges; returns `err` on malformed input.
 - secure_rand() builtin - CSPRNG 64-bit integer.

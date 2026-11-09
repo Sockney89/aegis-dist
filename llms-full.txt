@@ -2347,6 +2347,7 @@ monotonicity.
 ## New in 0.1.4
 
 - Time.parse_utc(s) - parse YYYY-MM-DDTHH:MM:SSZ to Unix seconds.
+  Validates separators and field ranges; returns `err` on malformed input.
 - secure_rand() builtin - CSPRNG 64-bit integer.
 
 
@@ -2406,7 +2407,7 @@ let url = e.url_encode("a b")
 | `hex_encode(s)` | `Str` | lowercase hex |
 | `hex_decode(s)` | `Str` | returns `""` on invalid input |
 | `url_encode(s)` | `Str` | RFC 3986 unreserved set |
-| `url_decode(s)` | `Str` | `+` becomes space |
+| `url_decode(s)` | `Str` | `+` becomes space; invalid `%XX` sequences are kept verbatim |
 | `base64url_encode(s)` | `Str` | URL-safe base64 (no padding) |
 | `base64url_decode(s)` | `Str` | URL-safe base64 decode |
 
@@ -2470,7 +2471,7 @@ log.warn("low disk")
 
 ## New in 0.1.4
 
-- set_json(on) - emit JSON lines.
+- set_json(on) - emit JSON lines (properly escapes backslashes and control chars).
 - set_max_bytes(n) - size-based rotation (renames to .1).
 
 
@@ -2783,6 +2784,7 @@ state must use `SharedList`/`SharedMap` or actor state.
 
 - Http.mime_type(path) - extension to MIME type.
 - Http.static_file now sets Content-Type.
+- Http.static_file rejects paths containing `..` (returns 404).
 - Http.ws_send_binary(conn, data) - binary WebSocket frames.
 
 
@@ -2836,6 +2838,13 @@ impl Path {
     fn temp_dir(self) -> Str
     fn temp_file(self, prefix: Str) -> Str
 }
+
+Notes:
+- `mkdir_all` now returns `err` when a directory cannot be created
+  (previously it always returned `ok`).
+- `temp_file` appends a cryptographically random suffix to avoid
+  predictable temporary file names.
+- `remove_all` does not follow symbolic links.
 ```
 PY
 
@@ -2909,6 +2918,10 @@ struct Dotenv {}
 impl Dotenv {
     fn load(self, path: Str) -> Result[Empty, Str]
 }
+
+Notes:
+- `load` accepts lines prefixed with `export `.
+- Keys must be non-empty; malformed lines are skipped.
 ```
 PY
 
