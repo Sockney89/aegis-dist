@@ -3103,6 +3103,37 @@ The last form forwards everything after `aegis` to the compiler, so
 `aegis hello.aegis --main Greeter::greet --emit-exe hello` is exactly
 `compiler hello.aegis --main Greeter::greet --emit-exe hello`.
 
+## Project workflow
+
+For multi-file projects, Aegis supports a manifest (`aegis.toml` or
+`aegis.json`) plus a small set of project commands:
+
+```
+aegis new myapp        # scaffold aegis.toml + src/main.aegis + src/lib.aegis
+aegis build            # compile per manifest (auto-detects aegis.toml)
+aegis check            # parse + type-check only (no binary emission)
+aegis run              # build, then run the resulting binary
+```
+
+`aegis.toml` schema:
+
+```toml
+name = "myapp"
+version = "0.1.0"
+sources = ["src/**/*.aegis"]   # globs, relative to the manifest
+main = "App::main"             # optional; defaults to App::main / Main::run / any `main(self)`
+stdlib = "stdlib"              # optional path to stdlib
+target = "x86_64-pc-windows-msvc"  # optional
+```
+
+`aegis build` expands the source globs, compiles all files into one program,
+and (by default) emits `<name>.exe`. `aegis check` stops after semantic
+analysis for fast agent feedback. Ad-hoc compiles without a manifest still work
+via positional files: `aegis foo.aegis bar.aegis --emit-exe app`.
+
+The compiler also accepts `--manifest PATH`, `--check`, and a directory
+positional (expands to its top-level `.aegis` files).
+
 ## Registering an agent: `aegis init`
 
 `aegis init` writes the `aegis-mcp` server into the config file of an agent host,
