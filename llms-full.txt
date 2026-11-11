@@ -270,6 +270,10 @@ aegis lib.aegis main.aegis --main Main::run --emit-exe main
 All items from all input files are available to each other. This enables
 building programs from multiple modules without explicit import statements.
 
+`extern`, `export`, `const`, and `global` declarations are idempotent across
+files: redeclaring the same name with an identical signature (or value/type)
+is accepted; a conflicting redeclaration is an error.
+
 ## Archive linking
 
 A compiled program can be packaged into a library archive and later linked into
