@@ -73,6 +73,7 @@ and `Int.pad(width)` are compiler builtins:
 | Method | Returns | Notes |
 | --- | --- | --- |
 | `length()` | `Int` | byte length |
+| `byte_at(i)` | `Int` | byte value at index `i` (0..255), or `-1` if out of range; allocates nothing |
 | `trim()` | `Str` | new string with leading/trailing ASCII whitespace removed |
 | `split(delim)` | `List[Str]` | split on a delimiter; empty delim => one whole-string piece; `""` => one empty piece |
 | `to_upper()` | `Str` | ASCII uppercase mapping (fresh copy) |

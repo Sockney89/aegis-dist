@@ -1509,6 +1509,7 @@ and `Int.pad(width)` are compiler builtins:
 | Method | Returns | Notes |
 | --- | --- | --- |
 | `length()` | `Int` | byte length |
+| `byte_at(i)` | `Int` | byte value at index `i` (0..255), or `-1` if out of range; allocates nothing |
 | `trim()` | `Str` | new string with leading/trailing ASCII whitespace removed |
 | `split(delim)` | `List[Str]` | split on a delimiter; empty delim => one whole-string piece; `""` => one empty piece |
 | `to_upper()` | `Str` | ASCII uppercase mapping (fresh copy) |
@@ -2796,12 +2797,13 @@ state must use `SharedList`/`SharedMap` or actor state.
 
 # StrBuf (string builder)
 
-`StrBuf` (stdlib/strbuf.aegis) accumulates string chunks in a `List[String]`
-and materialises the final `String` once, avoiding O(n^2) repeated
-concatenation.
+`StrBuf` (stdlib/strbuf.aegis) is a mutable byte buffer that accumulates
+text and materialises the final `String` once, avoiding O(n^2) repeated
+concatenation and per-character `Str` allocations. `reserve(n)` pre-grows
+the backing store; `len()` returns the byte length so far.
 
 ```aegis
-struct StrBuf { mut parts: List[String] }
+struct StrBuf { mut handle: Int }
 
 impl StrBuf {
     fn append(mut self, s: String) -> Empty
@@ -2816,7 +2818,7 @@ impl StrBuf {
 }
 ```
 
-Construct with `StrBuf { parts: [] }`.
+Construct with `StrBuf { handle: 0 }` (empty buffer).
 PY
 
 # stdlib/path

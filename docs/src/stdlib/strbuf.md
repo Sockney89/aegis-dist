@@ -1,11 +1,12 @@
 # StrBuf (string builder)
 
-`StrBuf` (stdlib/strbuf.aegis) accumulates string chunks in a `List[String]`
-and materialises the final `String` once, avoiding O(n^2) repeated
-concatenation.
+`StrBuf` (stdlib/strbuf.aegis) is a mutable byte buffer that accumulates
+text and materialises the final `String` once, avoiding O(n^2) repeated
+concatenation and per-character `Str` allocations. `reserve(n)` pre-grows
+the backing store; `len()` returns the byte length so far.
 
 ```aegis
-struct StrBuf { mut parts: List[String] }
+struct StrBuf { mut handle: Int }
 
 impl StrBuf {
     fn append(mut self, s: String) -> Empty
@@ -20,5 +21,5 @@ impl StrBuf {
 }
 ```
 
-Construct with `StrBuf { parts: [] }`.
+Construct with `StrBuf { handle: 0 }` (empty buffer).
 PY
