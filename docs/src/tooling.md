@@ -26,6 +26,7 @@ aegis new myapp        # scaffold aegis.toml + src/main.aegis + src/lib.aegis
 aegis build            # compile per manifest (auto-detects aegis.toml)
 aegis check            # parse + type-check only (no binary emission)
 aegis run              # build, then run the resulting binary
+aegis update            # check and update the installed toolchain
 ```
 
 `aegis.toml` schema:
@@ -43,6 +44,13 @@ target = "x86_64-pc-windows-msvc"  # optional
 and (by default) emits `<name>.exe`. `aegis check` stops after semantic
 analysis for fast agent feedback. Ad-hoc compiles without a manifest still work
 via positional files: `aegis foo.aegis bar.aegis --emit-exe app`.
+
+`aegis update` (also available as `aegis upgrade`) downloads the latest stable
+platform release, verifies its SHA-256 checksum, stages the archive, and updates
+the installed toolchain. Use `--check` to avoid installation, `--dry-run` to
+show the selected release, `--version V` to pin a release, and `--force` to
+reinstall the current version. The update does not modify project files, agent
+configuration, PATH, or `AEGIS_CC`.
 
 The compiler also accepts `--manifest PATH`, `--check`, and a directory
 positional (expands to its top-level `.aegis` files).
