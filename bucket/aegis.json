@@ -1,5 +1,5 @@
 {
-    "version": "0.1.3",
+    "version": "0.5.0",
     "description":  "Aegis: a contract-aware, event-driven systems language (compiler, MCP server, stdlib).",
     "homepage":  "https://github.com/Sockney89/aegis-dist",
     "license":  {
@@ -8,8 +8,8 @@
                 },
     "architecture":  {
                          "64bit":  {
-                                       "url":  "https://github.com/Sockney89/aegis-dist/releases/download/v0.1.3/aegis-x86_64-pc-windows-msvc.zip",
-                                       "hash":  "3d2a1ce7151a746f3954fdc504dbb8cdd454e9db35f6407055d650aa5966dd4c"
+                                       "url":  "https://github.com/Sockney89/aegis-dist/releases/download/v0.5.0/aegis-x86_64-pc-windows-msvc.zip",
+                                       "hash":  "db9b66af5738924b803128e1d72d5893c64dcc9b292c545c307f59057a077dd8"
                                    }
                      },
     "bin":  [
