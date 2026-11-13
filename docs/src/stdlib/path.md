@@ -25,6 +25,5 @@ Notes:
   (previously it always returned `ok`).
 - `temp_file` appends a cryptographically random suffix to avoid
   predictable temporary file names.
-- `remove_all` does not follow symbolic links.
-```
-PY
+- `remove_all` uses host filesystem predicates and has no explicit symlink
+  protection; do not pass an untrusted path.

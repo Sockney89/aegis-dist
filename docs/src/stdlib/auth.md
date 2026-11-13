@@ -15,3 +15,10 @@ let payload = a.jwt_verify(token, "secret")
 ## New in 0.1.4
 
 - const_time_eq(a, b) - constant-time string equality.
+
+`basic_decode` returns the decoded `user:password` string or `""` when the
+header is malformed. `cookie_get` returns `""` when the named cookie is not
+present. `jwt_sign` creates an HS256 token from the supplied JSON payload text;
+`jwt_verify` returns the payload text or `""` when the token has the wrong shape
+or signature. The caller is responsible for validating payload claims such as
+expiry and issuer.

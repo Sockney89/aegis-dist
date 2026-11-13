@@ -33,6 +33,7 @@ machines, event loops, closures, and higher-order list operations, and compile
 them to native executables. See [Quickstart](quickstart.md) to install Aegis
 and run your first program, and [Roadmap](roadmap.md) for where it is heading.
 
+
 # language/grammar
 
 # Grammar & keywords
@@ -596,6 +597,7 @@ location, and message, e.g.:
 semantic error [type] at 17:13: arg 0 of min: expected Int, got Str
 ```
 
+
 # language/types
 
 # Types & memory
@@ -909,6 +911,7 @@ level value semantics are preserved automatically.
   a compile error, as is mutating a list through an immutable binding
   (`xs.pop()` requires a `mut` list).
 
+
 # language/control-flow
 
 # Control flow
@@ -1167,6 +1170,7 @@ bare `ok` is valid). A method that returns nothing — no return type, or an
 explicit `-> Empty` — must use a bare `return`; `return ok` is only valid when
 the method's return type is a `Result`.
 
+
 # language/contracts
 
 # Design by contract
@@ -1199,6 +1203,7 @@ is executable documentation.
 Contracts are also used at the call boundary inside the standard library to
 express invariants that callers must respect, e.g. `Stack.pop` requires
 `!self.is_empty()`.
+
 
 # language/events
 
@@ -1243,6 +1248,7 @@ impl Order @ OrderState::Pending {
 
 This is Aegis's answer to temporal bugs: "which state is this object in?" is a
 compile-time fact, not a field the developer can forget to maintain.
+
 
 # language/closures
 
@@ -1332,6 +1338,7 @@ let total = doubled.fold(0, |acc: Int, x| acc + x)
 `map`/`filter`/`fold`/`sort` return new lists; the input list is not mutated.
 HOF predicates must return `Bool` and match the closure arity, both enforced
 semantically.
+
 
 # stdlib/math
 
@@ -1586,8 +1593,9 @@ character at a time.
 - **Braces**: Unescaped { starts a hole; literal { and } must be written as \{ and \}.
 - **String literals inside interpolation**: String literals are not supported inside interpolation expressions. Extract to a variable first.
 - **Holes must be str()-able**: Only Int, Float, Bool, String/Str. Containers like List/Map are rejected.
-- **Format specifiers**: See above; type must match (e.g. Float needs /g).
+- **Format specifiers**: See above; type must match (e.g. Float needs g).
 - **Multiline expressions**: Keep interpolation expressions on a single line where possible; complex multiline boolean expressions may not parse in all positions.
+
 
 # stdlib/list
 
@@ -1643,6 +1651,7 @@ let n = ys.length()
 binding, so collection structs can start from `mut items: List[Int]` with an
 empty initializer - the `types_compatible` rule recurses into element types.
 
+
 # stdlib/collections
 
 # Collections
@@ -1660,12 +1669,12 @@ struct Stack[T] { mut items: List[T] }
 
 impl Stack[T] {
     fn push(mut self, v: T) -> Empty
+    fn is_empty(self) -> Bool
+    fn len(self) -> Int
     requires !self.is_empty()
     fn pop(mut self) -> T
     requires !self.is_empty()
     fn peek(self) -> T
-    fn is_empty(self) -> Bool
-    fn len(self) -> Int
 }
 ```
 
@@ -1722,7 +1731,6 @@ struct Queue[T] { mut items: List[T], mut head: Int, mut len: Int }
 
 impl Queue[T] {
     fn push(mut self, v: T) -> Empty
-    requires !self.is_empty()
     fn pop(mut self) -> T
     requires !self.is_empty()
     fn peek(self) -> T
@@ -1805,8 +1813,8 @@ result to a name before calling further methods on it.
 ## Shared collections (threaded builds)
 
 `stdlib/shared.aegis` wraps `List[Int]` and `Map[Str, Int]` in a mutex for use
-with `--threads N`. Each collection owns a `Handle[Mutex]`; locking is manual
-(Aegis has no RAII), so every read/write must be bracketed by `lock`/`unlock`.
+with `--threads N`. The public methods lock and unlock internally; callers do
+not manually bracket `push`, `len`, `insert`, or `get_or`.
 
 ```aegis
 struct SharedList { mut items: List[Int], mut lock: Handle[Mutex] }
@@ -1843,7 +1851,7 @@ mutated key would invalidate its hash slot — encode composite keys as a
 
 Binary min-heap priority queue.
 
-`egis
+```aegis
 struct Heap { mut items: List[Int] }
 
 impl Heap {
@@ -1856,13 +1864,13 @@ impl Heap {
     requires !self.is_empty()
     fn peek(self) -> Int
 }
-`
+```
 
 ## SortedSet (stdlib/sortedset.aegis)
 
 Sorted set of Ints with binary-search contains.
 
-`egis
+```aegis
 struct SortedSet { mut items: List[Int] }
 
 impl SortedSet {
@@ -1872,13 +1880,13 @@ impl SortedSet {
     fn insert(mut self, v: Int) -> Empty
     fn remove(mut self, v: Int) -> Bool
 }
-`
+```
 
 ## SortedMap (stdlib/sortedmap.aegis)
 
 Sorted map with Int keys.
 
-`egis
+```aegis
 struct SortedMap { mut keys: List[Int], mut vals: Map[Int, Int] }
 
 impl SortedMap {
@@ -1890,13 +1898,13 @@ impl SortedMap {
     fn remove(mut self, key: Int) -> Bool
     fn keys_list(self) -> List[Int]
 }
-`
+```
 
 ## LRU cache (stdlib/lru.aegis)
 
 Least-recently-used cache with Int keys and values.
 
-`egis
+```aegis
 struct Lru { mut cap: Int, mut keys: List[Int], mut vals: Map[Int, Int] }
 
 impl Lru {
@@ -1905,13 +1913,13 @@ impl Lru {
     fn get(mut self, key: Int) -> Option[Int]
     fn put(mut self, key: Int, value: Int) -> Empty
 }
-`
+```
 
 ## Trie (stdlib/trie.aegis)
 
 Prefix tree over strings.
 
-`egis
+```aegis
 struct Trie { mut children: Map[Str, Trie], mut is_end: Bool }
 
 impl Trie {
@@ -1920,7 +1928,7 @@ impl Trie {
     fn contains(self, word: Str) -> Bool
     fn starts_with(self, prefix: Str) -> Bool
 }
-`
+```
 
 
 # stdlib/json
@@ -2038,20 +2046,20 @@ Aegis `String` type.
 Construct values with the enum variants directly, then serialize with
 `JsonParser.to_string`:
 
-`egis
+```aegis
 let mut m: Map[Str, Json] = {}
 m.insert("name", Json::Str("alice"))
 m.insert("age", Json::Num(30.0))
 let j = Json::Obj(m)
 let s = JsonParser {}.to_string(j)   // {"name":"alice","age":30}
-`
+```
 
 Arrays: Json::Arr(xs) where xs: List[Json]. Use Json::Null, Json::Bool(b), Json::Num(f), Json::Str(s).
 
 
 ## New in 0.1.4
 
-- 	o_string_pretty(j) - indented JSON.
+- to_string_pretty(j) - indented JSON.
 - parse_lines(text) / encode_lines(items) - JSON Lines.
 - pointer(j, path) - JSON Pointer (RFC 6901) lookup.
 
@@ -2120,7 +2128,8 @@ trailing-newline rule, blank input, encode round-trips, and table alignment.
 ## New in 0.1.4
 
 - Csv.parse_delim(text, delim) / encode_delim(rows, delim) - configurable delimiter.
-- Csv.append_file(path, rows) - streaming append.
+- Csv.append_file(path, rows) - reads the existing file, appends the encoded
+  rows in memory, and rewrites the file; it is not a streaming append.
 - Table.pad_cell_right/center/aligned - alignment helpers.
 
 
@@ -2309,7 +2318,7 @@ exercises every method against a scratch directory, including the error paths.
 
 ## New in 0.1.4
 
-- tomic_write(path, content) - write via temp file + rename.
+- atomic_write(path, content) - write via temp file + rename.
 - walk(dir) - recursively collect all file paths.
 - join_path(a, b) - path join.
 
@@ -2416,6 +2425,22 @@ let url = e.url_encode("a b")
 | `base64url_encode(s)` | `Str` | URL-safe base64 (no padding) |
 | `base64url_decode(s)` | `Str` | URL-safe base64 decode |
 
+```aegis
+let e = Encoding {}
+let encoded = e.base64_encode("hello")
+println(e.base64_decode(encoded))
+let url = e.base64url_encode("hello")
+println(e.base64url_decode(url))
+println(e.url_decode("a%20b+c")) // a b c
+```
+
+The decoders are permissive runtime helpers rather than validating parsers:
+malformed Base64 or hex characters are treated as zero-valued digits and
+incomplete groups may be ignored. `url_decode` preserves malformed `%XX`
+sequences verbatim. Validate untrusted encoded input before relying on its
+decoded content.
+
+
 # stdlib/db
 
 # Database interface (experimental)
@@ -2429,6 +2454,15 @@ let url = e.url_encode("a b")
 Drivers implement these traits; application code depends only on the traits.
 A SQLite driver is not auto-loaded (it requires linking SQLite); see the
 e2e SQLite suite for a concrete FFI example.
+
+The traits are intentionally small and do not define transactions, parameter
+binding, or row ownership. A concrete driver can expose those capabilities
+through additional methods while keeping application code dependent on the
+common operations. `DbRows.next()` reports whether another row is available;
+the typed getters read the current row by zero-based column index. Error
+conventions are left to the concrete driver because the original trait returns
+simple scalar values.
+
 
 # stdlib/regex
 
@@ -2451,9 +2485,7 @@ println(str(r.is_match("a|b", "b")))        // true
 
 Patterns are matched against the whole input unless anchored; an unanchored
 pattern matches if it occurs anywhere in the text.
-EOF
-path:
-D:\dev\opencode\aegis\public-docs\src\stdlib\regex.md
+
 
 # stdlib/log
 
@@ -2499,6 +2531,13 @@ let payload = a.jwt_verify(token, "secret")
 ## New in 0.1.4
 
 - const_time_eq(a, b) - constant-time string equality.
+
+`basic_decode` returns the decoded `user:password` string or `""` when the
+header is malformed. `cookie_get` returns `""` when the named cookie is not
+present. `jwt_sign` creates an HS256 token from the supplied JSON payload text;
+`jwt_verify` returns the payload text or `""` when the token has the wrong shape
+or signature. The caller is responsible for validating payload claims such as
+expiry and issuer.
 
 
 # stdlib/net
@@ -2597,7 +2636,7 @@ Notes:
   stores the reason in `tls_last_error()`.
 - TLS renegotiation initiated by the peer is attempted via SChannel's
   ApplyControlToken/InitializeSecurityContext handshake; on failure the read
-  returns an error and 	ls_last_error() reports the reason.
+  returns an error and tls_last_error() reports the reason.
 
 ## UDP
 
@@ -2652,7 +2691,7 @@ let rc = http.serve(8080, handler())
 
 | Type | Fields |
 | --- | --- |
-| `Request` | `method: Str`, `path: Str`, `headers: Map[Str, Str]`, `body: Str` |
+| `Request` | `method: Str`, `path: Str`, `params: Map[Str, Str]`, `headers: Map[Str, Str]`, `body: Str`, `query: Map[Str, Str]` |
 | `Response` | `status: Int`, `headers: Map[Str, Str]`, `body: Str` |
 
 | Method | Returns | Notes |
@@ -2669,8 +2708,8 @@ let rc = http.serve(8080, handler())
 | `serve_tls(port, cert_path, key_path, handler)` | `Int` | TLS server; POSIX takes a PEM chain + PEM key, Windows a PKCS#12 (`.pfx`) bundle |
 
 `serve_on` splits out the bind so the caller can pick an ephemeral port, read it
-back with `net.port(l)`, and publish it before blocking in `accept` - the shape
-The router is exercised for deterministic behavior.
+back with `net.port(l)`, and publish it before blocking in `accept`. A router
+can be built by matching on `req.method` and `req.path` in the handler.
 
 ## Response headers
 
@@ -2819,7 +2858,7 @@ impl StrBuf {
 ```
 
 Construct with `StrBuf { handle: 0 }` (empty buffer).
-PY
+
 
 # stdlib/path
 
@@ -2850,9 +2889,9 @@ Notes:
   (previously it always returned `ok`).
 - `temp_file` appends a cryptographically random suffix to avoid
   predictable temporary file names.
-- `remove_all` does not follow symbolic links.
-```
-PY
+- `remove_all` uses host filesystem predicates and has no explicit symlink
+  protection; do not pass an untrusted path.
+
 
 # stdlib/cli
 
@@ -2872,45 +2911,67 @@ impl Cli {
     fn usage(self, program: Str, desc: Str) -> Str
 }
 ```
-PY
+
+```aegis
+let cli = Cli {}
+if cli.has_flag("verbose") {
+    println("verbose mode")
+}
+let output = cli.get_option("output")
+let files = cli.positionals()
+```
+
+`has_flag("verbose")` recognizes `verbose`, `--verbose`, and `-verbose`.
+`get_option("output")` recognizes `--output value`, `-output value`, and
+`--output=value`; it returns `""` when the option is absent or has no following
+value. `positionals()` returns arguments that do not begin with `-`.
+
+`usage` only builds a short usage string; it does not print it or validate a
+complete command-line schema.
+
 
 # stdlib/platform
 
-# Platform detection
+# Platform Detection
 
-`Platform` (stdlib/platform.aegis) reports the host OS and well-known dirs.
+`Platform` reports the host platform and common user directories. The current
+implementation distinguishes Windows from non-Windows hosts; `is_linux()` is
+the inverse of `is_windows()` and `os_name()` returns either `"windows"` or
+`"linux"`.
 
 ```aegis
-struct Platform {}
-
-impl Platform {
-    fn is_windows(self) -> Bool
-    fn is_linux(self) -> Bool
-    fn os_name(self) -> Str
-    fn home_dir(self) -> Str
-    fn config_dir(self) -> Str
-    fn cache_dir(self) -> Str
-    fn temp_dir(self) -> Str
-}
+let p = Platform {}
+println(p.os_name())
+println(p.home_dir())
+println(p.config_dir())
+println(p.cache_dir())
+println(p.temp_dir())
 ```
-PY
+
+`home_dir`, `config_dir`, and `cache_dir` return an empty string when the
+relevant environment variables are unavailable. `temp_dir` delegates to
+`Path.temp_dir`, using `TEMP`, `TMP`, or `/tmp` according to the host.
+
 
 # stdlib/tracing
 
 # Tracing
 
-`Tracer`/`Span` (stdlib/tracing.aegis) provide minimal span timing.
+`Tracer` provides minimal elapsed-time spans using the monotonic `now_ms()`
+clock.
 
 ```aegis
-struct Span { name: Str, start_ms: Int }
-struct Tracer {}
-
-impl Tracer {
-    fn start(self, name: Str) -> Span
-    fn end(self, span: Span) -> Int
-}
+let tracer = Tracer {}
+let span = tracer.start("load-config")
+// work being measured
+let elapsed = tracer.end(span)
+println(str(elapsed) + " ms")
 ```
-PY
+
+`start(name)` records the span name and start time. `end(span)` prints
+`span <name> took <n> ms` and returns the elapsed milliseconds. The helper is
+intended for lightweight diagnostics, not a distributed tracing protocol.
+
 
 # stdlib/dotenv
 
@@ -2929,43 +2990,63 @@ Notes:
 - `load` accepts lines prefixed with `export `.
 - Keys must be non-empty; malformed lines are skipped.
 ```
-PY
+
 
 # stdlib/sandbox
 
 # Sandbox
 
-`Sandbox` (stdlib/sandbox.aegis) provides safe subprocess execution wrappers.
+`Sandbox` provides convenience checks around `Os.exec` and `Os.shell`. It is
+not an operating-system sandbox and does not make arbitrary shell input safe.
 
 ```aegis
-struct Sandbox {}
-
-impl Sandbox {
-    fn run(self, program: Str, args: List[Str]) -> Result[Output, Str]
-    fn shell_safe(self, command: Str) -> Result[Output, Str]
+let s = Sandbox {}
+let result = s.run("echo", ["hello"])
+match result {
+    ok(output) => { println(output.stdout) }
+    err(message) => { println(message) }
 }
 ```
-PY
+
+`run(program, args)` rejects an empty program name and program names containing
+`;`, `|`, or `&`, then executes the program directly with argument separation.
+Arguments are not shell-parsed.
+
+`shell_safe(command)` rejects `;`, `|`, `&`, and backticks before passing the
+command to the host shell. This is only a basic guard. Do not use it as a
+security boundary for untrusted commands; use `run` with explicit arguments or
+an OS/container sandbox instead.
+
 
 # stdlib/metrics
 
 # Metrics
 
-`Metrics` (stdlib/metrics.aegis) is a tiny in-process metrics registry
-(counters and gauges).
+`Metrics` is a small in-process helper for counters and gauges. It is not a
+global registry or an exporter: maps are passed explicitly and returned after
+each update.
 
 ```aegis
-struct Metrics {}
+let metrics = Metrics {}
+let mut counts = metrics.counter("requests", 0)
+counts = metrics.inc(counts, "requests", 1)
+println(str(metrics.get(counts, "requests"))) // 1
 
-impl Metrics {
-    fn counter(self, name: Str, value: Int) -> Map[Str, Int]
-    fn inc(self, mut m: Map[Str, Int], name: Str, delta: Int) -> Map[Str, Int]
-    fn get(self, m: Map[Str, Int], name: Str) -> Int
-    fn gauge(self, name: Str, value: Int) -> Map[Str, Int]
-    fn set(self, mut m: Map[Str, Int], name: Str, value: Int) -> Map[Str, Int]
-}
+let mut gauges = metrics.gauge("workers", 2)
+gauges = metrics.set(gauges, "workers", 3)
 ```
-PY
+
+| Method | Returns | Behavior |
+| --- | --- | --- |
+| `counter(name, value)` | `Map[Str, Int]` | Creates a one-entry counter map. |
+| `inc(map, name, delta)` | `Map[Str, Int]` | Adds `delta`, treating a missing key as zero. |
+| `get(map, name)` | `Int` | Returns zero when the key is absent. |
+| `gauge(name, value)` | `Map[Str, Int]` | Creates a one-entry gauge map. |
+| `set(map, name, value)` | `Map[Str, Int]` | Replaces the value for a key. |
+
+Use a shared map or a struct containing maps when an application needs a
+long-lived registry.
+
 
 # quickstart
 
@@ -3025,7 +3106,6 @@ impl Greeter {
         println("hello, aegis")
     }
 }
-EOF
 
 compiler hello.aegis --main Greeter::greet --emit-exe hello
 ./hello
@@ -3043,7 +3123,7 @@ and can be overridden with `--main X::y`. `main` may return `Int` (the exit
 code), nothing (exit 0), or `Result[Empty, E]`: `return ok` exits 0, and
 `return err(n)` exits with `n` when the error payload is an `Int` (any other
 payload exits 1), giving CLIs an explicit non-zero exit-code path with `?`
-propagation. There is no `args: List[String]` parameter — programs read
+propagation. There is no `args: List[String]` parameter â€” programs read
 `argc()` and `arg(i)`, where `arg(0)` is the program path and real arguments
 start at `arg(1)` (see [wordfreq CLI](examples.md) for a full argv-driven
 program).
@@ -3061,7 +3141,7 @@ aegis init --tool opencode    # also: claude, cursor, vscode, windsurf, codex, a
 
 Then restart the host. See [the `aegis` CLI](tooling.md) for the flags, the
 per-host config files, and the
-`create_session` → `stream_source` → `eos` → `link_object` → `run_object` loop.
+`create_session` â†’ `stream_source` â†’ `eos` â†’ `link_object` â†’ `run_object` loop.
 
 ## Standard library
 
@@ -3079,13 +3159,16 @@ The "stdlib" has two layers:
 Seed modules are **not auto-loaded**: to use their methods, list the module
 files among the compiler inputs, e.g.
 `compiler stdlib/mathstr.aegis app.aegis --emit-exe app.exe`. Compiler
-builtins (layer 1) need no file — they are always in scope.
+builtins (layer 1) need no file â€” they are always in scope.
 
 ### MCP resources (corpus discovery)
 
-To read docs from the MCP server, initialize the server and call esources/list to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. egis://docs/...); do not guess generic URIs. Example:
-- Call esources/list to enumerate available resources
-- Use the exact URIs returned (e.g. egis://docs/stdlib/index, egis://docs/language/syntax) with esources/read`r
+To read docs from the MCP server, initialize the server and call 
+esources/list to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. ```aegis://docs/...); do not guess generic URIs. Example:
+- Call 
+esources/list to enumerate available resources
+- Use the exact URIs returned (e.g. ```aegis://docs/stdlib/index, ```aegis://docs/language/syntax) with 
+esources/read`r
 
 
 
@@ -3262,7 +3345,7 @@ archive) remains available for opencode-only setups.
 
 ## One installation, one compiler
 
-The agent host talks to exactly one egis-mcp server, which resolves its corpus and
+The agent host talks to exactly one aegis-mcp server, which resolves its corpus and
 stdlib relative to its own executable. Keep a single Aegis install on the machine:
 leftover copies (for example under `C:\Users\<you>\AppData\Local\Aegis`) are
 older builds that the agent may discover and prefer over the registered one.

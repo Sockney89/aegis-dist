@@ -169,7 +169,7 @@ archive) remains available for opencode-only setups.
 
 ## One installation, one compiler
 
-The agent host talks to exactly one egis-mcp server, which resolves its corpus and
+The agent host talks to exactly one aegis-mcp server, which resolves its corpus and
 stdlib relative to its own executable. Keep a single Aegis install on the machine:
 leftover copies (for example under `C:\Users\<you>\AppData\Local\Aegis`) are
 older builds that the agent may discover and prefer over the registered one.

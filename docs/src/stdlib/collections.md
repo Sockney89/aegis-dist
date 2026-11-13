@@ -13,12 +13,12 @@ struct Stack[T] { mut items: List[T] }
 
 impl Stack[T] {
     fn push(mut self, v: T) -> Empty
+    fn is_empty(self) -> Bool
+    fn len(self) -> Int
     requires !self.is_empty()
     fn pop(mut self) -> T
     requires !self.is_empty()
     fn peek(self) -> T
-    fn is_empty(self) -> Bool
-    fn len(self) -> Int
 }
 ```
 
@@ -75,7 +75,6 @@ struct Queue[T] { mut items: List[T], mut head: Int, mut len: Int }
 
 impl Queue[T] {
     fn push(mut self, v: T) -> Empty
-    requires !self.is_empty()
     fn pop(mut self) -> T
     requires !self.is_empty()
     fn peek(self) -> T
@@ -158,8 +157,8 @@ result to a name before calling further methods on it.
 ## Shared collections (threaded builds)
 
 `stdlib/shared.aegis` wraps `List[Int]` and `Map[Str, Int]` in a mutex for use
-with `--threads N`. Each collection owns a `Handle[Mutex]`; locking is manual
-(Aegis has no RAII), so every read/write must be bracketed by `lock`/`unlock`.
+with `--threads N`. The public methods lock and unlock internally; callers do
+not manually bracket `push`, `len`, `insert`, or `get_or`.
 
 ```aegis
 struct SharedList { mut items: List[Int], mut lock: Handle[Mutex] }
@@ -196,7 +195,7 @@ mutated key would invalidate its hash slot — encode composite keys as a
 
 Binary min-heap priority queue.
 
-`egis
+```aegis
 struct Heap { mut items: List[Int] }
 
 impl Heap {
@@ -209,13 +208,13 @@ impl Heap {
     requires !self.is_empty()
     fn peek(self) -> Int
 }
-`
+```
 
 ## SortedSet (stdlib/sortedset.aegis)
 
 Sorted set of Ints with binary-search contains.
 
-`egis
+```aegis
 struct SortedSet { mut items: List[Int] }
 
 impl SortedSet {
@@ -225,13 +224,13 @@ impl SortedSet {
     fn insert(mut self, v: Int) -> Empty
     fn remove(mut self, v: Int) -> Bool
 }
-`
+```
 
 ## SortedMap (stdlib/sortedmap.aegis)
 
 Sorted map with Int keys.
 
-`egis
+```aegis
 struct SortedMap { mut keys: List[Int], mut vals: Map[Int, Int] }
 
 impl SortedMap {
@@ -243,13 +242,13 @@ impl SortedMap {
     fn remove(mut self, key: Int) -> Bool
     fn keys_list(self) -> List[Int]
 }
-`
+```
 
 ## LRU cache (stdlib/lru.aegis)
 
 Least-recently-used cache with Int keys and values.
 
-`egis
+```aegis
 struct Lru { mut cap: Int, mut keys: List[Int], mut vals: Map[Int, Int] }
 
 impl Lru {
@@ -258,13 +257,13 @@ impl Lru {
     fn get(mut self, key: Int) -> Option[Int]
     fn put(mut self, key: Int, value: Int) -> Empty
 }
-`
+```
 
 ## Trie (stdlib/trie.aegis)
 
 Prefix tree over strings.
 
-`egis
+```aegis
 struct Trie { mut children: Map[Str, Trie], mut is_end: Bool }
 
 impl Trie {
@@ -273,4 +272,4 @@ impl Trie {
     fn contains(self, word: Str) -> Bool
     fn starts_with(self, prefix: Str) -> Bool
 }
-`
+```

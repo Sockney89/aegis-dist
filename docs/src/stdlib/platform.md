@@ -1,18 +1,19 @@
-# Platform detection
+# Platform Detection
 
-`Platform` (stdlib/platform.aegis) reports the host OS and well-known dirs.
+`Platform` reports the host platform and common user directories. The current
+implementation distinguishes Windows from non-Windows hosts; `is_linux()` is
+the inverse of `is_windows()` and `os_name()` returns either `"windows"` or
+`"linux"`.
 
 ```aegis
-struct Platform {}
-
-impl Platform {
-    fn is_windows(self) -> Bool
-    fn is_linux(self) -> Bool
-    fn os_name(self) -> Str
-    fn home_dir(self) -> Str
-    fn config_dir(self) -> Str
-    fn cache_dir(self) -> Str
-    fn temp_dir(self) -> Str
-}
+let p = Platform {}
+println(p.os_name())
+println(p.home_dir())
+println(p.config_dir())
+println(p.cache_dir())
+println(p.temp_dir())
 ```
-PY
+
+`home_dir`, `config_dir`, and `cache_dir` return an empty string when the
+relevant environment variables are unavailable. `temp_dir` delegates to
+`Path.temp_dir`, using `TEMP`, `TMP`, or `/tmp` according to the host.

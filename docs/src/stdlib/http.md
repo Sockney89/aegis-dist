@@ -20,7 +20,7 @@ let rc = http.serve(8080, handler())
 
 | Type | Fields |
 | --- | --- |
-| `Request` | `method: Str`, `path: Str`, `headers: Map[Str, Str]`, `body: Str` |
+| `Request` | `method: Str`, `path: Str`, `params: Map[Str, Str]`, `headers: Map[Str, Str]`, `body: Str`, `query: Map[Str, Str]` |
 | `Response` | `status: Int`, `headers: Map[Str, Str]`, `body: Str` |
 
 | Method | Returns | Notes |
@@ -37,8 +37,8 @@ let rc = http.serve(8080, handler())
 | `serve_tls(port, cert_path, key_path, handler)` | `Int` | TLS server; POSIX takes a PEM chain + PEM key, Windows a PKCS#12 (`.pfx`) bundle |
 
 `serve_on` splits out the bind so the caller can pick an ephemeral port, read it
-back with `net.port(l)`, and publish it before blocking in `accept` - the shape
-The router is exercised for deterministic behavior.
+back with `net.port(l)`, and publish it before blocking in `accept`. A router
+can be built by matching on `req.method` and `req.path` in the handler.
 
 ## Response headers
 

@@ -14,4 +14,20 @@ impl Cli {
     fn usage(self, program: Str, desc: Str) -> Str
 }
 ```
-PY
+
+```aegis
+let cli = Cli {}
+if cli.has_flag("verbose") {
+    println("verbose mode")
+}
+let output = cli.get_option("output")
+let files = cli.positionals()
+```
+
+`has_flag("verbose")` recognizes `verbose`, `--verbose`, and `-verbose`.
+`get_option("output")` recognizes `--output value`, `-output value`, and
+`--output=value`; it returns `""` when the option is absent or has no following
+value. `positionals()` returns arguments that do not begin with `-`.
+
+`usage` only builds a short usage string; it does not print it or validate a
+complete command-line schema.

@@ -60,5 +60,6 @@ trailing-newline rule, blank input, encode round-trips, and table alignment.
 ## New in 0.1.4
 
 - Csv.parse_delim(text, delim) / encode_delim(rows, delim) - configurable delimiter.
-- Csv.append_file(path, rows) - streaming append.
+- Csv.append_file(path, rows) - reads the existing file, appends the encoded
+  rows in memory, and rewrites the file; it is not a streaming append.
 - Table.pad_cell_right/center/aligned - alignment helpers.

@@ -22,4 +22,3 @@ impl StrBuf {
 ```
 
 Construct with `StrBuf { handle: 0 }` (empty buffer).
-PY

@@ -1,14 +1,16 @@
 # Tracing
 
-`Tracer`/`Span` (stdlib/tracing.aegis) provide minimal span timing.
+`Tracer` provides minimal elapsed-time spans using the monotonic `now_ms()`
+clock.
 
 ```aegis
-struct Span { name: Str, start_ms: Int }
-struct Tracer {}
-
-impl Tracer {
-    fn start(self, name: Str) -> Span
-    fn end(self, span: Span) -> Int
-}
+let tracer = Tracer {}
+let span = tracer.start("load-config")
+// work being measured
+let elapsed = tracer.end(span)
+println(str(elapsed) + " ms")
 ```
-PY
+
+`start(name)` records the span name and start time. `end(span)` prints
+`span <name> took <n> ms` and returns the elapsed milliseconds. The helper is
+intended for lightweight diagnostics, not a distributed tracing protocol.

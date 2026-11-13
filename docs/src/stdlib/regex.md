@@ -17,6 +17,3 @@ println(str(r.is_match("a|b", "b")))        // true
 
 Patterns are matched against the whole input unless anchored; an unanchored
 pattern matches if it occurs anywhere in the text.
-EOF
-path:
-D:\dev\opencode\aegis\public-docs\src\stdlib\regex.md

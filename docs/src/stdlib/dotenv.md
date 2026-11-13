@@ -13,4 +13,3 @@ Notes:
 - `load` accepts lines prefixed with `export `.
 - Keys must be non-empty; malformed lines are skipped.
 ```
-PY

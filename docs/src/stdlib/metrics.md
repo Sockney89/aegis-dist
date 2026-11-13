@@ -1,17 +1,26 @@
 # Metrics
 
-`Metrics` (stdlib/metrics.aegis) is a tiny in-process metrics registry
-(counters and gauges).
+`Metrics` is a small in-process helper for counters and gauges. It is not a
+global registry or an exporter: maps are passed explicitly and returned after
+each update.
 
 ```aegis
-struct Metrics {}
+let metrics = Metrics {}
+let mut counts = metrics.counter("requests", 0)
+counts = metrics.inc(counts, "requests", 1)
+println(str(metrics.get(counts, "requests"))) // 1
 
-impl Metrics {
-    fn counter(self, name: Str, value: Int) -> Map[Str, Int]
-    fn inc(self, mut m: Map[Str, Int], name: Str, delta: Int) -> Map[Str, Int]
-    fn get(self, m: Map[Str, Int], name: Str) -> Int
-    fn gauge(self, name: Str, value: Int) -> Map[Str, Int]
-    fn set(self, mut m: Map[Str, Int], name: Str, value: Int) -> Map[Str, Int]
-}
+let mut gauges = metrics.gauge("workers", 2)
+gauges = metrics.set(gauges, "workers", 3)
 ```
-PY
+
+| Method | Returns | Behavior |
+| --- | --- | --- |
+| `counter(name, value)` | `Map[Str, Int]` | Creates a one-entry counter map. |
+| `inc(map, name, delta)` | `Map[Str, Int]` | Adds `delta`, treating a missing key as zero. |
+| `get(map, name)` | `Int` | Returns zero when the key is absent. |
+| `gauge(name, value)` | `Map[Str, Int]` | Creates a one-entry gauge map. |
+| `set(map, name, value)` | `Map[Str, Int]` | Replaces the value for a key. |
+
+Use a shared map or a struct containing maps when an application needs a
+long-lived registry.

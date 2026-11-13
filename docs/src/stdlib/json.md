@@ -111,19 +111,19 @@ Aegis `String` type.
 Construct values with the enum variants directly, then serialize with
 `JsonParser.to_string`:
 
-`egis
+```aegis
 let mut m: Map[Str, Json] = {}
 m.insert("name", Json::Str("alice"))
 m.insert("age", Json::Num(30.0))
 let j = Json::Obj(m)
 let s = JsonParser {}.to_string(j)   // {"name":"alice","age":30}
-`
+```
 
 Arrays: Json::Arr(xs) where xs: List[Json]. Use Json::Null, Json::Bool(b), Json::Num(f), Json::Str(s).
 
 
 ## New in 0.1.4
 
-- 	o_string_pretty(j) - indented JSON.
+- to_string_pretty(j) - indented JSON.
 - parse_lines(text) / encode_lines(items) - JSON Lines.
 - pointer(j, path) - JSON Pointer (RFC 6901) lookup.

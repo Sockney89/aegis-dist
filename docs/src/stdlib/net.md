@@ -92,7 +92,7 @@ Notes:
   stores the reason in `tls_last_error()`.
 - TLS renegotiation initiated by the peer is attempted via SChannel's
   ApplyControlToken/InitializeSecurityContext handshake; on failure the read
-  returns an error and 	ls_last_error() reports the reason.
+  returns an error and tls_last_error() reports the reason.
 
 ## UDP
 
