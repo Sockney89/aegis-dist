@@ -94,7 +94,7 @@ q.pop()            // 5 (FIFO order)
 
 A double-ended queue implemented as two grow-only `List` stacks: `front` holds
 its elements reversed (live element at the end) and `back` holds them in order.
-`push`/`pop` at either end are amortized O(1) — when one side empties, the other
+`push`/`pop` at either end are amortized O(1) â€” when one side empties, the other
 is reversed into it (`List.reverse()` is a native builtin). `peek` never mutates:
 it reads the far element of whichever side is populated. All four end operations
 are guarded by `requires !self.is_empty()`.
@@ -187,7 +187,7 @@ An arity mismatch (`impl Stack[Int, String]`) is a compile error.
 
 JSON pretty-printing and a richer string formatter are still on the way.
 Struct-keyed maps are deliberately out of scope: structs are mutable, so a
-mutated key would invalidate its hash slot — encode composite keys as a
+mutated key would invalidate its hash slot â€” encode composite keys as a
 `String` instead. See [Roadmap](../roadmap.md).
 
 

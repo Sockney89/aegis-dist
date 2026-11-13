@@ -30,3 +30,14 @@ Properties:
   fingerprints, not a password or integrity primitive.
 
 Verified by the `hash` checks in the builtin test suites.
+
+## Example
+
+```aegis
+let digest = sha256("hello")
+let mac = hmac_sha256("secret", "hello")
+let sealed = aes_encrypt("0123456789abcdef0123456789abcdef", "hello")
+let opened = aes_decrypt("0123456789abcdef0123456789abcdef", sealed)
+println(digest)
+println(opened)
+```

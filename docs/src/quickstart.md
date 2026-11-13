@@ -71,7 +71,7 @@ and can be overridden with `--main X::y`. `main` may return `Int` (the exit
 code), nothing (exit 0), or `Result[Empty, E]`: `return ok` exits 0, and
 `return err(n)` exits with `n` when the error payload is an `Int` (any other
 payload exits 1), giving CLIs an explicit non-zero exit-code path with `?`
-propagation. There is no `args: List[String]` parameter â€” programs read
+propagation. There is no `args: List[String]` parameter Ã¢â‚¬â€ programs read
 `argc()` and `arg(i)`, where `arg(0)` is the program path and real arguments
 start at `arg(1)` (see [wordfreq CLI](examples.md) for a full argv-driven
 program).
@@ -89,7 +89,7 @@ aegis init --tool opencode    # also: claude, cursor, vscode, windsurf, codex, a
 
 Then restart the host. See [the `aegis` CLI](tooling.md) for the flags, the
 per-host config files, and the
-`create_session` â†’ `stream_source` â†’ `eos` â†’ `link_object` â†’ `run_object` loop.
+`create_session` Ã¢â€ â€™ `stream_source` Ã¢â€ â€™ `eos` Ã¢â€ â€™ `link_object` Ã¢â€ â€™ `run_object` loop.
 
 ## Standard library
 
@@ -107,14 +107,10 @@ The "stdlib" has two layers:
 Seed modules are **not auto-loaded**: to use their methods, list the module
 files among the compiler inputs, e.g.
 `compiler stdlib/mathstr.aegis app.aegis --emit-exe app.exe`. Compiler
-builtins (layer 1) need no file â€” they are always in scope.
+builtins (layer 1) need no file Ã¢â‚¬â€ they are always in scope.
 
 ### MCP resources (corpus discovery)
 
-To read docs from the MCP server, initialize the server and call 
-esources/list to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. ```aegis://docs/...); do not guess generic URIs. Example:
-- Call 
-esources/list to enumerate available resources
-- Use the exact URIs returned (e.g. ```aegis://docs/stdlib/index, ```aegis://docs/language/syntax) with 
-esources/read`r
-
+To read docs from the MCP server, initialize the server and call `resources/list` to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. `aegis://docs/...`); do not guess generic URIs. Example:
+- Call `resources/list` to enumerate available resources
+- Use the exact URIs returned (e.g. `aegis://docs/stdlib/index`, `aegis://docs/language/syntax`) with `resources/read`

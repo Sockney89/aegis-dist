@@ -12,9 +12,9 @@ let url = e.url_encode("a b")
 | Method | Returns | Notes |
 | --- | --- | --- |
 | `base64_encode(s)` | `Str` | standard base64 |
-| `base64_decode(s)` | `Str` | returns `""` on invalid input |
+| `base64_decode(s)` | `Str` | permissive; invalid chars treated as zero |
 | `hex_encode(s)` | `Str` | lowercase hex |
-| `hex_decode(s)` | `Str` | returns `""` on invalid input |
+| `hex_decode(s)` | `Str` | permissive; invalid chars treated as zero |
 | `url_encode(s)` | `Str` | RFC 3986 unreserved set |
 | `url_decode(s)` | `Str` | `+` becomes space; invalid `%XX` sequences are kept verbatim |
 | `base64url_encode(s)` | `Str` | URL-safe base64 (no padding) |

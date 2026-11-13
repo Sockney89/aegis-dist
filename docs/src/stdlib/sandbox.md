@@ -20,3 +20,14 @@ Arguments are not shell-parsed.
 command to the host shell. This is only a basic guard. Do not use it as a
 security boundary for untrusted commands; use `run` with explicit arguments or
 an OS/container sandbox instead.
+
+## Example
+
+```aegis
+let s = Sandbox {}
+let result = s.run("echo", ["hello"])
+match result {
+    ok(output) => { println(output.stdout) }
+    err(message) => { println(message) }
+}
+```

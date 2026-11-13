@@ -1389,8 +1389,8 @@ let h = 42.pad(5)         // "00042"
 ```
 
 `format`/`pad` produce text; use them where a value must be printed with
-fixed decimals or zero-padded width (interpolation format specifiers —
-`"{x:.2f}"`, `"{i:05d}"` — cover the same need inline).
+fixed decimals or zero-padded width (interpolation format specifiers â€”
+`"{x:.2f}"`, `"{i:05d}"` â€” cover the same need inline).
 
 Argument types are checked like any other method, so `(2.0).pow(3)` (an `Int`
 exponent) is rejected with `pow exponent must be a Float, got Int`. Use
@@ -1434,9 +1434,8 @@ type-checks each argument the same way it checks any method:
 Calling them on temporaries is supported: `5.min(9)`, `16.0.sqrt()`.
 
 Integer `Int.pow` is a real Aegis method (it needs no runtime helper), unlike
-`Float.pow` which must go through `libm`. The seed module is only in scope when
-`stdlib/mathstr.aegis` is among the compiler inputs — the stdlib is not
-auto-loaded.
+Float.pow which must go through libm. The seed module is auto-loaded
+by default unless `--no-prelude` is used.
 
 
 # stdlib/string
@@ -1750,7 +1749,7 @@ q.pop()            // 5 (FIFO order)
 
 A double-ended queue implemented as two grow-only `List` stacks: `front` holds
 its elements reversed (live element at the end) and `back` holds them in order.
-`push`/`pop` at either end are amortized O(1) — when one side empties, the other
+`push`/`pop` at either end are amortized O(1) â€” when one side empties, the other
 is reversed into it (`List.reverse()` is a native builtin). `peek` never mutates:
 it reads the far element of whichever side is populated. All four end operations
 are guarded by `requires !self.is_empty()`.
@@ -1843,7 +1842,7 @@ An arity mismatch (`impl Stack[Int, String]`) is a compile error.
 
 JSON pretty-printing and a richer string formatter are still on the way.
 Struct-keyed maps are deliberately out of scope: structs are mutable, so a
-mutated key would invalidate its hash slot — encode composite keys as a
+mutated key would invalidate its hash slot â€” encode composite keys as a
 `String` instead. See [Roadmap](../roadmap.md).
 
 
@@ -2186,10 +2185,8 @@ A `match` on a `Result` binds its payload by reference, so a bound `String`
 supports the full string surface. The test suite verifies these behaviors
 against scratch files and directories, including the `err` path on a missing
 file.
-
-The stdlib is not auto-loaded: these IO builtins need no `import`, but
-seed-module methods (for example `String.replace`) require
-`stdlib/mathstr.aegis` among the compiler inputs.
+Compiler builtins (layer 1) need no file. Seed-module methods (for example
+`String.replace`) are available automatically because the compiler preloads
 
 
 # stdlib/os
@@ -2198,8 +2195,7 @@ seed-module methods (for example `String.replace`) require
 
 The `os` module is a seed module (`stdlib/os.aegis`): a thin, safe wrapper over
 the platform's file, environment, and process APIs. Like
-the other seed modules it is **not auto-loaded** — list `stdlib/os.aegis` among
-the compiler inputs.
+the compiler preloads it automatically unless `--no-prelude` is used.
 
 ```aegis
 let os = Os {}
@@ -2400,6 +2396,16 @@ Properties:
 
 Verified by the `hash` checks in the builtin test suites.
 
+## Example
+
+```aegis
+let digest = sha256("hello")
+let mac = hmac_sha256("secret", "hello")
+let sealed = aes_encrypt("0123456789abcdef0123456789abcdef", "hello")
+let opened = aes_decrypt("0123456789abcdef0123456789abcdef", sealed)
+println(digest)
+println(opened)
+```
 
 # stdlib/encoding
 
@@ -2417,9 +2423,9 @@ let url = e.url_encode("a b")
 | Method | Returns | Notes |
 | --- | --- | --- |
 | `base64_encode(s)` | `Str` | standard base64 |
-| `base64_decode(s)` | `Str` | returns `""` on invalid input |
+| `base64_decode(s)` | `Str` | permissive; invalid chars treated as zero |
 | `hex_encode(s)` | `Str` | lowercase hex |
-| `hex_decode(s)` | `Str` | returns `""` on invalid input |
+| `hex_decode(s)` | `Str` | permissive; invalid chars treated as zero |
 | `url_encode(s)` | `Str` | RFC 3986 unreserved set |
 | `url_decode(s)` | `Str` | `+` becomes space; invalid `%XX` sequences are kept verbatim |
 | `base64url_encode(s)` | `Str` | URL-safe base64 (no padding) |
@@ -2929,6 +2935,17 @@ value. `positionals()` returns arguments that do not begin with `-`.
 `usage` only builds a short usage string; it does not print it or validate a
 complete command-line schema.
 
+## Example
+
+```aegis
+let cli = Cli {}
+if cli.has_flag("verbose") {
+    println("verbose mode")
+}
+let output = cli.get_option("output")
+let files = cli.positionals()
+println(cli.usage("myapp", "process files"))
+```
 
 # stdlib/platform
 
@@ -2952,6 +2969,16 @@ println(p.temp_dir())
 relevant environment variables are unavailable. `temp_dir` delegates to
 `Path.temp_dir`, using `TEMP`, `TMP`, or `/tmp` according to the host.
 
+## Example
+
+```aegis
+let p = Platform {}
+println(p.os_name())
+println(p.home_dir())
+println(p.config_dir())
+println(p.cache_dir())
+println(p.temp_dir())
+```
 
 # stdlib/tracing
 
@@ -2972,6 +2999,15 @@ println(str(elapsed) + " ms")
 `span <name> took <n> ms` and returns the elapsed milliseconds. The helper is
 intended for lightweight diagnostics, not a distributed tracing protocol.
 
+## Example
+
+```aegis
+let tracer = Tracer {}
+let span = tracer.start("load-config")
+// work being measured
+let elapsed = tracer.end(span)
+println(str(elapsed) + " ms")
+```
 
 # stdlib/dotenv
 
@@ -3017,6 +3053,16 @@ command to the host shell. This is only a basic guard. Do not use it as a
 security boundary for untrusted commands; use `run` with explicit arguments or
 an OS/container sandbox instead.
 
+## Example
+
+```aegis
+let s = Sandbox {}
+let result = s.run("echo", ["hello"])
+match result {
+    ok(output) => { println(output.stdout) }
+    err(message) => { println(message) }
+}
+```
 
 # stdlib/metrics
 
@@ -3047,6 +3093,17 @@ gauges = metrics.set(gauges, "workers", 3)
 Use a shared map or a struct containing maps when an application needs a
 long-lived registry.
 
+## Example
+
+```aegis
+let metrics = Metrics {}
+let mut counts = metrics.counter("requests", 0)
+counts = metrics.inc(counts, "requests", 1)
+println(str(metrics.get(counts, "requests"))) // 1
+
+let mut gauges = metrics.gauge("workers", 2)
+gauges = metrics.set(gauges, "workers", 3)
+```
 
 # quickstart
 
@@ -3123,7 +3180,7 @@ and can be overridden with `--main X::y`. `main` may return `Int` (the exit
 code), nothing (exit 0), or `Result[Empty, E]`: `return ok` exits 0, and
 `return err(n)` exits with `n` when the error payload is an `Int` (any other
 payload exits 1), giving CLIs an explicit non-zero exit-code path with `?`
-propagation. There is no `args: List[String]` parameter â€” programs read
+propagation. There is no `args: List[String]` parameter Ã¢â‚¬â€ programs read
 `argc()` and `arg(i)`, where `arg(0)` is the program path and real arguments
 start at `arg(1)` (see [wordfreq CLI](examples.md) for a full argv-driven
 program).
@@ -3141,7 +3198,7 @@ aegis init --tool opencode    # also: claude, cursor, vscode, windsurf, codex, a
 
 Then restart the host. See [the `aegis` CLI](tooling.md) for the flags, the
 per-host config files, and the
-`create_session` â†’ `stream_source` â†’ `eos` â†’ `link_object` â†’ `run_object` loop.
+`create_session` Ã¢â€ â€™ `stream_source` Ã¢â€ â€™ `eos` Ã¢â€ â€™ `link_object` Ã¢â€ â€™ `run_object` loop.
 
 ## Standard library
 
@@ -3159,18 +3216,13 @@ The "stdlib" has two layers:
 Seed modules are **not auto-loaded**: to use their methods, list the module
 files among the compiler inputs, e.g.
 `compiler stdlib/mathstr.aegis app.aegis --emit-exe app.exe`. Compiler
-builtins (layer 1) need no file â€” they are always in scope.
+builtins (layer 1) need no file Ã¢â‚¬â€ they are always in scope.
 
 ### MCP resources (corpus discovery)
 
-To read docs from the MCP server, initialize the server and call 
-esources/list to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. ```aegis://docs/...); do not guess generic URIs. Example:
-- Call 
-esources/list to enumerate available resources
-- Use the exact URIs returned (e.g. ```aegis://docs/stdlib/index, ```aegis://docs/language/syntax) with 
-esources/read`r
-
-
+To read docs from the MCP server, initialize the server and call `resources/list` to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. `aegis://docs/...`); do not guess generic URIs. Example:
+- Call `resources/list` to enumerate available resources
+- Use the exact URIs returned (e.g. `aegis://docs/stdlib/index`, `aegis://docs/language/syntax`) with `resources/read`
 
 # tooling
 

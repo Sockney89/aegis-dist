@@ -1,4 +1,4 @@
-# Int & Float math
+﻿# Int & Float math
 
 ## Numeric conversions
 
@@ -45,8 +45,8 @@ let h = 42.pad(5)         // "00042"
 ```
 
 `format`/`pad` produce text; use them where a value must be printed with
-fixed decimals or zero-padded width (interpolation format specifiers —
-`"{x:.2f}"`, `"{i:05d}"` — cover the same need inline).
+fixed decimals or zero-padded width (interpolation format specifiers â€”
+`"{x:.2f}"`, `"{i:05d}"` â€” cover the same need inline).
 
 Argument types are checked like any other method, so `(2.0).pow(3)` (an `Int`
 exponent) is rejected with `pow exponent must be a Float, got Int`. Use
@@ -90,6 +90,5 @@ type-checks each argument the same way it checks any method:
 Calling them on temporaries is supported: `5.min(9)`, `16.0.sqrt()`.
 
 Integer `Int.pow` is a real Aegis method (it needs no runtime helper), unlike
-`Float.pow` which must go through `libm`. The seed module is only in scope when
-`stdlib/mathstr.aegis` is among the compiler inputs — the stdlib is not
-auto-loaded.
+Float.pow which must go through libm. The seed module is auto-loaded
+by default unless `--no-prelude` is used.

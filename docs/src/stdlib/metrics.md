@@ -24,3 +24,15 @@ gauges = metrics.set(gauges, "workers", 3)
 
 Use a shared map or a struct containing maps when an application needs a
 long-lived registry.
+
+## Example
+
+```aegis
+let metrics = Metrics {}
+let mut counts = metrics.counter("requests", 0)
+counts = metrics.inc(counts, "requests", 1)
+println(str(metrics.get(counts, "requests"))) // 1
+
+let mut gauges = metrics.gauge("workers", 2)
+gauges = metrics.set(gauges, "workers", 3)
+```

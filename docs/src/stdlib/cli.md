@@ -31,3 +31,15 @@ value. `positionals()` returns arguments that do not begin with `-`.
 
 `usage` only builds a short usage string; it does not print it or validate a
 complete command-line schema.
+
+## Example
+
+```aegis
+let cli = Cli {}
+if cli.has_flag("verbose") {
+    println("verbose mode")
+}
+let output = cli.get_option("output")
+let files = cli.positionals()
+println(cli.usage("myapp", "process files"))
+```

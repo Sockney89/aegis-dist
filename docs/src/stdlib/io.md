@@ -1,4 +1,4 @@
-# File IO & stdin
+﻿# File IO & stdin
 
 These are value-level compiler builtins (like `print` / `argc`). Failures are values: `read_file`, `read_line`, and
 `list_dir` return `Result[String, String]` / `Result[List[String], String]`, and
@@ -49,7 +49,5 @@ A `match` on a `Result` binds its payload by reference, so a bound `String`
 supports the full string surface. The test suite verifies these behaviors
 against scratch files and directories, including the `err` path on a missing
 file.
-
-The stdlib is not auto-loaded: these IO builtins need no `import`, but
-seed-module methods (for example `String.replace`) require
-`stdlib/mathstr.aegis` among the compiler inputs.
+Compiler builtins (layer 1) need no file. Seed-module methods (for example
+`String.replace`) are available automatically because the compiler preloads

@@ -1,9 +1,8 @@
-# OS & processes
+﻿# OS & processes
 
 The `os` module is a seed module (`stdlib/os.aegis`): a thin, safe wrapper over
 the platform's file, environment, and process APIs. Like
-the other seed modules it is **not auto-loaded** — list `stdlib/os.aegis` among
-the compiler inputs.
+the compiler preloads it automatically unless `--no-prelude` is used.
 
 ```aegis
 let os = Os {}
