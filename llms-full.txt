@@ -3222,7 +3222,7 @@ builtins (layer 1) need no file Ã¢â‚¬â€ they are always in scope.
 
 To read docs from the MCP server, initialize the server and call `resources/list` to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. `aegis://docs/...`); do not guess generic URIs. Example:
 - Call `resources/list` to enumerate available resources
-- Use the exact URIs returned (e.g. `aegis://docs/stdlib/index`, `aegis://docs/language/syntax`) with `resources/read`
+- Use the exact URIs returned (e.g. `aegis://docs/stdlib/index.md`, `aegis://docs/language/grammar.md`) with `resources/read`
 
 # tooling
 
@@ -3422,6 +3422,31 @@ The server must be initialized (the host sends `initialize` then
 `resources/list` usually means the host has not finished initialization or the
 server was started without `--docs`/`--stdlib`. Restart the host after
 `aegis init`.
+
+## Agent verification workflow
+
+When an agent reports that an Aegis program works, it must include evidence for
+each level reached:
+
+```text
+Static check:   PASS/FAIL   (aegis check)
+Compiler tests: PASS/FAIL   (cargo test; report skipped native tests)
+Native E2E:     PASS/FAIL   (tests/e2e.ps1 or tests/e2e.sh)
+Executable:
+  path:         <absolute path>
+  fresh build:  yes/no
+  launched:     yes/no
+  exit code:    <integer>
+  output check: matched/failed
+```
+
+egis check proves only syntax and type checking. egis build proves
+only linking. Neither proves the executable runs. `aegis run` launches the
+freshly built executable with a 30-second timeout and reports its exit code and
+captured output.
+
+Do not report "tests passed" when native tests were skipped. Set
+`AEGIS_STRICT_NATIVE=1` to make skipped native tests panic in release CI.
 
 
 # examples

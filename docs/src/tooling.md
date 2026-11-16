@@ -1,4 +1,4 @@
-# Tooling: the `aegis` CLI
+﻿# Tooling: the `aegis` CLI
 
 Every release ships a single front-end, `aegis`, next to the compiler and the
 services. It is the recommended entry point:
@@ -194,3 +194,28 @@ The server must be initialized (the host sends `initialize` then
 `resources/list` usually means the host has not finished initialization or the
 server was started without `--docs`/`--stdlib`. Restart the host after
 `aegis init`.
+
+## Agent verification workflow
+
+When an agent reports that an Aegis program works, it must include evidence for
+each level reached:
+
+```text
+Static check:   PASS/FAIL   (aegis check)
+Compiler tests: PASS/FAIL   (cargo test; report skipped native tests)
+Native E2E:     PASS/FAIL   (tests/e2e.ps1 or tests/e2e.sh)
+Executable:
+  path:         <absolute path>
+  fresh build:  yes/no
+  launched:     yes/no
+  exit code:    <integer>
+  output check: matched/failed
+```
+
+egis check proves only syntax and type checking. egis build proves
+only linking. Neither proves the executable runs. `aegis run` launches the
+freshly built executable with a 30-second timeout and reports its exit code and
+captured output.
+
+Do not report "tests passed" when native tests were skipped. Set
+`AEGIS_STRICT_NATIVE=1` to make skipped native tests panic in release CI.

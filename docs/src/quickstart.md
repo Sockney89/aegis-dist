@@ -113,4 +113,4 @@ builtins (layer 1) need no file Ã¢â‚¬â€ they are always in scope.
 
 To read docs from the MCP server, initialize the server and call `resources/list` to discover valid resource URIs. The corpus is exposed via resource URIs (e.g. `aegis://docs/...`); do not guess generic URIs. Example:
 - Call `resources/list` to enumerate available resources
-- Use the exact URIs returned (e.g. `aegis://docs/stdlib/index`, `aegis://docs/language/syntax`) with `resources/read`
+- Use the exact URIs returned (e.g. `aegis://docs/stdlib/index.md`, `aegis://docs/language/grammar.md`) with `resources/read`
