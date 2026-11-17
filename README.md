@@ -1,4 +1,4 @@
-# Aegis
+﻿# Aegis
 
 Aegis is a contract-aware, event-driven systems language: a deliberately tiny
 grammar with stack-by-default memory, inferred automatic reference counting,
@@ -38,15 +38,15 @@ on Linux). Pin a version with `-Version 0.1.3` (PowerShell) or
 
 ## What you get
 
-- `aegis` — the toolchain front-end (`init`, `mcp`, `daemon`, `ws`,
+- `aegis` - the toolchain front-end (`init`, `new`, `build`, `run`, `check`, `update`, `mcp`, `daemon`, `ws`,
   `version`, or any compiler flag forwarded verbatim).
-- `compiler` — the Aegis compiler (`--emit-obj`, `--emit-exe`, `--emit-lib`,
+- `compiler` Ã¢â‚¬â€ the Aegis compiler (`--emit-obj`, `--emit-exe`, `--emit-lib`,
   `--emit-dylib`).
-- `aegis-mcp` — a Model Context Protocol server exposing sessions and the
+- `aegis-mcp` Ã¢â‚¬â€ a Model Context Protocol server exposing sessions and the
   language spec to AI agents.
-- `aegis-daemon` / `aegis-ws` — the streaming server and its client.
-- `runtime/prebuilt/` — the per-target runtime objects the compiler links.
-- `stdlib/` and `docs/` — the seed standard library and the language reference.
+- `aegis-daemon` / `aegis-ws` Ã¢â‚¬â€ the streaming server and its client.
+- `runtime/prebuilt/` Ã¢â‚¬â€ the per-target runtime objects the compiler links.
+- `stdlib/` and `docs/` Ã¢â‚¬â€ the seed standard library and the language reference.
 
 ## Language at a glance
 
